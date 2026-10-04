@@ -34,7 +34,7 @@ void text_glyph(volatile uint8_t *dst, const uint8_t *glyph, uint16_t nfill);   
 
 void text_at(uint8_t y, uint8_t col, const char *s, uint8_t color)
 {
-    static const uint8_t fill[4] = { 0x00, 0x55, 0xAA, 0xFF };
+    static const uint8_t fill[4] = { 0x00, SWAPC(0x55), SWAPC(0xAA), 0xFF };   /* цвет как на PC */
     uint16_t nf = (uint8_t)~fill[color & 3];
     volatile uint8_t *p = (volatile uint8_t *)VRAM_ADDR(y) + (col << 1);
     for (; *s; ++s, p += 2)

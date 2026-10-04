@@ -44,8 +44,8 @@ void room_frame(uint16_t base)
     gfx_fill(pos_of(base + 0x284), SZ(1, 0x48), 0);
     gfx_fill(pos_of(base + 0x1184), SZ(1, 0x48), 0);
     /* углы стен: столбец из 0x5F строк — байт CGA 0x2A слева, 0xA8 справа (в порядке бит БК наоборот) */
-    gfx_fill(pos_of(base + 0x2284), SZ(0x5F, 1), 0xA8);
-    gfx_fill(pos_of(base + 0x22CB), SZ(0x5F, 1), 0x2A);
+    gfx_fill(pos_of(base + 0x2284), SZ(0x5F, 1), SWAPC(0xA8));
+    gfx_fill(pos_of(base + 0x22CB), SZ(0x5F, 1), SWAPC(0x2A));
 }
 
 /* 0x2958 / 0x2970 / 0x2988 / 0x2945: мебель по спискам */

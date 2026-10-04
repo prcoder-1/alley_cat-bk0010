@@ -1,7 +1,7 @@
 /*
  * Сцены в ДОЗУ СМК-512: у каждой своя страница (режим Std10, окно
  * 0120000..0157777). При запуске в каждую страницу грузятся (EMT 36)
- * файл сцены с 0120000 и общий блок HI (блиттер, константы ядра) с 0146000.
+ * файл сцены с 0120000 и общий блок HI (блиттер, константы ядра) с 0145000.
  * Первое слово сцены — её вход ovl_entry().
  */
 #include "ovl.h"
@@ -11,7 +11,7 @@
 struct ovl_ops ovl;
 
 #define OVL_ADDR ((uint8_t *)0120000)
-#define HI_ADDR  ((uint8_t *)0146000)
+#define HI_ADDR  ((uint8_t *)0145000)
 #define SMK_STD10 060
 
 static const char *const names[] =
@@ -68,6 +68,7 @@ void ovl_init(void)
 
 void ovl_load(uint8_t id)
 {
+    gfx_regions_reset();
     smk_page(id);
     ((void (*)(void))OVL_ADDR)();
 }

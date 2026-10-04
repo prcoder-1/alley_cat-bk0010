@@ -15,8 +15,9 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 DS = open(os.path.join(HERE, 'cat_data.bin'), 'rb').read()
 
-# перестановка цветов CGA -> БК (по значению пикселя)
-PERM = [0, 1, 2, 3]
+# перестановка цветов CGA -> БК (по значению пикселя): синий и зелёный
+# поменяны местами, как в прежнем порте (небо синее, забор зелёный)
+PERM = [0, 2, 1, 3]
 
 
 def bk_byte(b):

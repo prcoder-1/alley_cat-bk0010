@@ -319,11 +319,9 @@ static void draw(void)
     room_picture(0x1FE0, POS(0xDD6));
 }
 
-static void run(void)
+/* 0x457A */
+static void cage_init(void)
 {
-    g_state = 5;
-    transition();
-    draw();
     cage_x = 0x90;
     cage_y = 0x86;
     cage_pos = POS_XY(cage_x, cage_y);
@@ -333,6 +331,14 @@ static void run(void)
     bird_hidden = 1;
     bird_dy = 0;
     bird_goal = 0xFF;
+}
+
+static void run(void)
+{
+    g_state = 5;
+    transition();
+    draw();
+    cage_init();
     cat_init_room();
     broom_init();
     dog_reset();

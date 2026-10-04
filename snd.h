@@ -7,6 +7,7 @@ extern uint8_t snd_dog_step;      /* [59BA] */
 extern uint8_t snd_hold;          /* [5B07] */
 
 void snd_idle(uint16_t counts);  /* непрерывный тон в простое цикла */
+void snd_idle_tick(void);       /* тон до конца тика */
 void snd_wait(uint16_t counts);  /* выждать, играя текущий тон */
 void snd_off(void);              /* 0x5B21 */
 void snd_fight_init(void);       /* 0x5450 */

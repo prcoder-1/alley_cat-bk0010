@@ -8,7 +8,7 @@
 #include "data_wash.h"
 
 
-static uint8_t fence_prev; /* [2AC4] */
+static uint8_t fence_prev; /* [2AC4] (на PC — общий счётчик циклов фона) */
 
 /* запомнить столбец вещи (формат БК) — начальная история прокрутки на БК */
 static void hist_col(uint8_t *dst, uint8_t c)
@@ -48,6 +48,7 @@ static void ropes_init(void)
 /* 0x2B9E: забор */
 void fence_draw(void)
 {
+    fence_prev = 0;     /* 0x2ACA */
     for (uint8_t c = 0; c < 80; c += 2)
     {
         uint8_t r;
@@ -56,7 +57,7 @@ void fence_draw(void)
         blit((uint16_t)((104 << 8) | c), SZ(8, 2), d_fence_top + r, BM_COPY);
     }
     /* тело забора: слово 0x5655 (байты 0x55, 0x56) в строках 112..175 */
-    gfx_fill2(POS(0x1180), SZ(64, 80), 0x55, 0x95);
+    gfx_fill2(POS(0x1180), SZ(64, 80), SWAPC(0x55), SWAPC(0x95));
     /* кляксы: 4 вида по 9 штук */
     for (uint8_t k = 0; k < 4; ++k)
         for (uint8_t i = 0; i < 9; ++i)
@@ -119,7 +120,7 @@ void debris_draw(void)
 /* общая часть 0x2A00 и 0x2A30 */
 static void alley_bg_common(void)
 {
-    gfx_fill_rows(0, 200, 0xAA);
+    gfx_fill_rows(0, 200, SWAPC(0xAA));
     fence_draw();
     draw_list(t_list_alley, 0, d_tiles, 0x2720);
     skill_draw();

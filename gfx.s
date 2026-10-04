@@ -9,12 +9,31 @@
 / size = строк<<8 | ширина в байтах CGA (1..40)
 
 	.globl _gfx_blit, _gfx_restore, _gfx_save, _gfx_span, _gfx_fillu, _text_glyph
-	.globl _gfx_j0, _gfx_je, _gfx_rel0, _gfx_ntint
+	.globl _tone_sq, _umulhi
+	.globl _gfx_j0, _gfx_je, _gfx_rel0, _gfx_ntint, _gfx_mode
+	.globl _gfx_j0c, _gfx_jec, _gfx_rel0c
 
 	VRAM = 040000
 	ROW0 = 28			/ 200 строк картинки по центру окна 256
 
 	.text
+
+/ void gfx_mode(uint16_t crop): 0 — сжатие 4/5 (вся ширина CGA), иначе обрезка:
+/ видны байты CGA 9..72 (точки 36..291) в масштабе 1:1. Переменные режима — в .data,
+/ т.е. своя копия в каждой странице СМК: режим действует только в своей сцене.
+_gfx_mode:
+	tst	2(sp)
+	bne	1f
+	mov	$_gfx_j0, g_tj0
+	mov	$_gfx_je, g_tje
+	mov	$_gfx_rel0, g_trel
+	mov	$5, g_step
+	rts	pc
+1:	mov	$_gfx_j0c, g_tj0
+	mov	$_gfx_jec, g_tje
+	mov	$_gfx_rel0c, g_trel
+	mov	$4, g_step
+	rts	pc
 
 / Геометрия: r0 = pos, r1 = size -> g_addr, g_nb, g_rows, g_w, g_rel0
 geom:
@@ -27,13 +46,17 @@ geom:
 	movb	r0, r3
 	bic	$0177400, r3		/ c
 	add	r3, r2			/ c+W
-	movb	_gfx_je(r2), r2
+	add	g_tje, r2
+	movb	(r2), r2
 	bic	$0177400, r2
-	movb	_gfx_j0(r3), r4
+	mov	g_tj0, r4
+	add	r3, r4
+	movb	(r4), r4
 	bic	$0177400, r4		/ j0
 	sub	r4, r2
 	mov	r2, g_nb
-	movb	_gfx_rel0(r3), r2	/ со знаком
+	add	g_trel, r3
+	movb	(r3), r2		/ со знаком
 	mov	r2, g_rel0
 	clrb	r0
 	swab	r0			/ строка
@@ -64,7 +87,7 @@ masks:
 	mov	g_nb, r1
 	dec	r1
 	beq	2f
-1:	add	$5, r0
+1:	add	g_step, r0
 	sob	r1, 1b
 2:	mov	g_w, r1
 	asl	r1
@@ -93,7 +116,9 @@ _gfx_span:
 	mov	014(sp), r1
 	jsr	pc, geom
 	mov	g_nb, r0
-	jmp	ret4
+	bge	1f
+	clr	r0
+1:	jmp	ret4
 
 / void gfx_save(pos, size, uint8_t *buf): снять фон (в формате БК)
 _gfx_save:
@@ -104,7 +129,10 @@ _gfx_save:
 	mov	012(sp), r0
 	mov	014(sp), r1
 	jsr	pc, geom
-	mov	016(sp), r4
+	tst	g_nb
+	bgt	1f
+	jmp	ret4
+1:	mov	016(sp), r4
 	mov	g_addr, r3
 	mov	g_rows, r5
 1:	mov	g_nb, r2
@@ -125,7 +153,10 @@ _gfx_restore:
 	mov	012(sp), r0
 	mov	014(sp), r1
 	jsr	pc, geom
-	jsr	pc, masks
+	tst	g_nb
+	bgt	1f
+	jmp	ret4
+1:	jsr	pc, masks
 	mov	016(sp), r4
 	mov	g_addr, r3
 	mov	g_rows, g_left
@@ -156,7 +187,10 @@ _gfx_fillu:
 	mov	012(sp), r0
 	mov	014(sp), r1
 	jsr	pc, geom
-	jsr	pc, masks
+	tst	g_nb
+	bgt	1f
+	jmp	ret4
+1:	jsr	pc, masks
 	movb	016(sp), r5
 	bic	$0177400, r5
 	mov	r5, r0
@@ -239,6 +273,61 @@ _text_glyph:
 spread:	.byte 0, 03, 014, 017, 060, 063, 074, 077
 	.byte 0300, 0303, 0314, 0317, 0360, 0363, 0374, 0377
 
+/ void tone_sq(uint16_t hp, uint16_t counts): меандр, полупериод — hp витков sob
+/ (исполняется из ОЗУ СМК, где нет тактов ожидания, поэтому высота стабильна);
+/ длится counts отсчётов таймера БК. hp = 0 — тишина той же длительности.
+_tone_sq:
+	mov	r2, -(sp)
+	mov	r3, -(sp)
+	mov	r4, -(sp)
+	mov	010(sp), r1
+	mov	012(sp), r2
+	mov	@$0177710, r3
+	tst	r1
+	bne	2f
+1:	mov	r3, r0
+	sub	@$0177710, r0
+	cmp	r0, r2
+	blo	1b
+	br	9f
+2:	mov	t_level, r4
+3:	mov	r4, @$0177716
+	neg	r4
+	add	$0100, r4		/ 0 <-> 0100
+	mov	r1, r0
+4:	sob	r0, 4b
+	mov	r3, r0
+	sub	@$0177710, r0
+	cmp	r0, r2
+	blo	3b
+	mov	r4, t_level
+9:	mov	(sp)+, r4
+	mov	(sp)+, r3
+	mov	(sp)+, r2
+	rts	pc
+
+/ uint16_t umulhi(uint16_t a, uint16_t b): старшее слово произведения
+_umulhi:
+	mov	r2, -(sp)
+	mov	r3, -(sp)
+	mov	r4, -(sp)
+	mov	010(sp), r2
+	mov	012(sp), r3
+	clr	r0
+	clr	r1
+	mov	$020, r4
+1:	asl	r1
+	rol	r0
+	asl	r3
+	bcc	2f
+	add	r2, r1
+	adc	r0
+2:	sob	r4, 1b
+	mov	(sp)+, r4
+	mov	(sp)+, r3
+	mov	(sp)+, r2
+	rts	pc
+
 ret4:
 	mov	(sp)+, r5
 	mov	(sp)+, r4
@@ -259,7 +348,10 @@ _gfx_blit:
 	mov	012(sp), r0
 	mov	014(sp), r1
 	jsr	pc, geom
-	mov	016(sp), g_src
+	tst	g_nb
+	bgt	1f
+	jmp	ret4
+1:	mov	016(sp), g_src
 	mov	020(sp), g_save
 	mov	022(sp), r0
 	asl	r0
@@ -279,15 +371,19 @@ _gfx_blit:
 2:	mov	$-1, g_fill
 1:
 	/ начало в буфере строки: pbuf[0] — заполнитель (k = -1)
-	mov	g_rel0, r0
-	mov	$pbuf+1, r1
-	tst	r0
-	bge	1f
-	dec	r1
-	add	$4, r0
-1:	mov	r1, g_kptr
+	mov	g_rel0, r0		/ kptr = pbuf+1 + rel0>>2, вход = rel0 & 3
+	mov	r0, r1
+	asr	r1
+	asr	r1
+	add	$pbuf+1, r1
+	mov	r1, g_kptr
+	bic	$0177774, r0
 	asl	r0
 	mov	blk(r0), g_entry
+	cmp	g_step, $4		/ обрезка: сдвигов нет, строка копируется как есть
+	bne	1f
+	mov	$bcopy, g_entry
+1:
 	jsr	pc, masks
 	mov	g_addr, r3
 	mov	g_rows, g_left
@@ -440,12 +536,24 @@ optint:
 	jmp	row
 1:	jmp	ret4
 
+/ обрезка 1:1: строка без сдвига
+bcopy:	movb	(r1)+, (r4)+
+	sob	r5, bcopy
+	jmp	cvdone
+
 ops:	.word opcopy, opand, opkey, opor, optint
 blk:	.word b0, b1, b2, b3
 / первый байт: внутри при rel0 = -1,-2,-3 старшие 3,2,1 пикселя
 lmask:	.byte 0374, 0360, 0300, 0
 / последний байт: внутри 1,2,3 младших пикселя
 rmask:	.byte 03, 017, 077, 0
+
+	.data
+g_tj0:	.word _gfx_j0
+g_tje:	.word _gfx_je
+g_trel:	.word _gfx_rel0
+g_step:	.word 5
+t_level: .word 0
 
 	.bss
 	.even

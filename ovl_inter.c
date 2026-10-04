@@ -114,7 +114,7 @@ static void fail_pic(void)
     for (uint8_t n = 0x1C; n; --n)
     {
         /* 0x1E17: картинка через маску */
-        uint8_t m = rev_px(mask);
+        uint8_t m = SWAPC(rev_px(mask));
         for (uint8_t i = 0; i < 192; ++i) g_scratch[i] = src[i] & m;
         blit(POS(0x0ED0), SZ(12, 16), g_scratch, BM_COPY);
         wait_tick_snd(snd_tune2);

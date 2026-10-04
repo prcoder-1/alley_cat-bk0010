@@ -222,7 +222,7 @@ static void mice_update(void)
         m_spr = al < 0x13 ? 0x3D80 : al == 0x13 ? 0x3DB0 : 0;
     }
     else
-        m_spr = (al & 1) ? 0x3D50 : 0x3D20;
+        m_spr = (al & 1) ? 0x3D20 : 0x3D50;   /* [3DE0] = 3D50, 3D20 */
     m_npos = POS_XY(m_x[bx], m_y[bx]);
     mouse_erase(bx);
     if (mouse_broom(bx)) return;

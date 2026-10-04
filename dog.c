@@ -21,6 +21,7 @@ static uint16_t dog_size;   /* [1CC4] */
 uint16_t dog_x;             /* [1CC6] */
 uint8_t dog_y;              /* [1CC8] */
 static uint16_t dog_tick;   /* [1CC9] */
+static uint16_t dog_rt;     /* кадр последней проверки обратного хода */
 static uint16_t dog_npos;   /* [1CCD] */
 static uint8_t dog_frame;   /* [1CCF] */
 static uint8_t dog_dir;     /* [1CD0] */
@@ -167,7 +168,7 @@ void dog_update(void)
 {
     uint16_t t = ticks();
     if ((uint16_t)(t - dog_tick) < (uint16_t)((dog_count & 1) + 1)) return;
-    if (!retrace()) return;
+    if (!retrace_seen(&dog_rt)) return;
     dog_tick = t;
     ++dog_count;
     uint16_t ax;

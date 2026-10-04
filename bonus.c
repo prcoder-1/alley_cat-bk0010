@@ -70,7 +70,7 @@ void bonus(uint8_t gift)
     {
         ++g_felicia_n;
         g_felicia_next = 1;
-        head_mask(0xAA);
+        head_mask(SWAPC(0xAA));   /* маска AND тоже в цветах БК */
         bn_anim = 0;
         heads(0);
         t = (uint16_t)(ticks() - g_alley_t);

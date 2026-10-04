@@ -43,33 +43,35 @@ static uint16_t f_glide;           /* [5B12] */
 
 static uint16_t tone_div;          /* текущий тон (делитель PIT), 0 — тишина */
 static uint8_t spk_level;
-static uint16_t ph_acc;            /* фаза в 1/256 отсчёта таймера БК */
 
-/* полупериод в 1/256 отсчёта: div / 1193182 / 2 * 23437,5 * 256 = div * 2,514 */
+void tone_sq(uint16_t hp, uint16_t counts);   /* gfx.s (страница СМК) */
+uint16_t umulhi(uint16_t a, uint16_t b);
+
+/*
+ * Полупериод в витках sob цикла tone_sq: div / 1193182 / 2 с при 3 МГц —
+ * div * 1,2571 тактов, минус накладные расходы витка. Константы сняты по
+ * частоте фронтов в эмуляторе (bk_audio).
+ */
+#define TONE_MUL 5511     /* 65536 * 1,2571 / 14,95 такта на виток sob */
+#define TONE_OFS 9     /* 131 такт накладных расходов полупериода */
+static uint16_t hp_div, hp_val;
+
 static uint16_t half_period(uint16_t div)
 {
-    return (uint16_t)((div << 1) + (div >> 1) + (div >> 6));
+    if (div != hp_div)
+    {
+        hp_div = div;
+        uint16_t h = umulhi(div, TONE_MUL);
+        hp_val = h > TONE_OFS ? h - TONE_OFS : 1;
+    }
+    return hp_val;
 }
 
 /* играть тон div в течение counts отсчётов таймера БК (0 — молчать) */
 static void tone_run(uint16_t div, uint16_t counts)
 {
-    uint16_t hp = div ? half_period(div) : 0;
-    while (counts)
-    {
-        uint16_t d = tmr_elapsed();
-        if (d == 0) continue;
-        if (d > counts) d = counts;
-        counts -= d;
-        if (!hp) continue;
-        ph_acc += (uint16_t)(d << 8);
-        while (ph_acc >= hp)
-        {
-            ph_acc -= hp;
-            spk_level ^= 1;
-            spk_set(spk_level);
-        }
-    }
+    tone_sq(div ? half_period(div) : 0, counts);
+    tmr_elapsed();
 }
 
 /* аналог out 42h/43h + включение динамика (0x5889) */
@@ -96,9 +98,21 @@ void snd_wait(uint16_t counts)
     tone_run(g_sound ? tone_div : 0, counts);
 }
 
+/*
+ * Простой цикла со звучащим тоном. На PC тон звучит сам, у БК — только пока
+ * процессор в tone_sq, поэтому кусок вчетверо длиннее запрошенного: доля
+ * тона в проходе растёт, звук не рвётся. Логика от этого не страдает —
+ * число проходов PC и обратный ход считаются по таймеру.
+ */
 void snd_idle(uint16_t counts)
 {
-    if (tone_div) tone_run(tone_div, counts);
+    if (tone_div) tone_run(tone_div, (uint16_t)(counts << 2));
+}
+
+/* звучать текущим тоном до конца тика: нота мелодии звучит сплошняком */
+void snd_idle_tick(void)
+{
+    if (tone_div) tone_run(tone_div, to_tick());
 }
 
 /* 0x5B21 */

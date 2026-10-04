@@ -55,7 +55,7 @@ void cat_save_bg(void)
 /* 0x1145: вывести кота (AND) со снятием фона */
 void cat_draw(void)
 {
-    static const uint8_t tint_fill[4] = { 0x00, 0x55, 0xAA, 0xFF };
+    static const uint8_t tint_fill[4] = { 0x00, SWAPC(0x55), SWAPC(0xAA), 0xFF };
     cat_size = cat_nsize;
     cat_noerase = 0;
     gfx_ntint = (uint8_t)~tint_fill[cat_tint];
@@ -319,10 +319,13 @@ void cat_splat(void)
     if (g_item_thrown && g_lives) --g_lives;
 }
 
+static uint16_t cat_rt;   /* кадр последней проверки обратного хода */
+
 /* 0x08E5: обновление кота */
 void cat_update(void)
 {
     uint16_t t = ticks();
+    uint16_t ax = 0;     /* AX после int 1Ah или 0x20 */
     if (t == cat_tick)
     {
         if (cat_sub == 0) return;
@@ -334,12 +337,13 @@ void cat_update(void)
         cat_sub = 0;
     }
     else
-        cat_sub = 0x20;
+        cat_sub = ax = 0x20;
     if (g_state == 2 || (cat_vdir | cat_dir) == 0)
     {
-        if (!retrace()) return;
+        if (!retrace_seen(&cat_rt)) return;
     }
     cat_tick = t;
+    cat_tick_lo = ax;    /* 0x092A */
     if (CALL(busy)) return;
     if (g_state == 2)
     {

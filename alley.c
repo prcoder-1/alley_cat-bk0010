@@ -124,9 +124,10 @@ static void rope_scroll(uint8_t r, const uint8_t *col)
 /* 0x04A0 */
 void rope_update(void)
 {
-    if (rope_delay > g_passes4)
+    uint16_t d = rope_delay ? rope_delay : 256;   /* dec byte: из 0 получается 0xFF */
+    if (d > g_passes4)
     {
-        rope_delay -= (uint8_t)g_passes4;
+        rope_delay = (uint8_t)(d - g_passes4);
         return;
     }
     rope_delay = 1;
@@ -168,7 +169,9 @@ newitem:
     if (rope_cur == 1)
     {
         rope_shift((uint8_t)((wash_mask >> 1) & 1));
-        rope_shift(wash_mask & 1);
+        uint8_t c = wash_mask & 1;
+        wash_mask >>= 1;        /* 0x0578 */
+        rope_shift(c);
     }
     else
     {
@@ -316,9 +319,10 @@ static void win_anim(void)
 /* 0x1936 */
 void windows_update(void)
 {
-    if (win_delay > g_passes4)
+    uint16_t d = win_delay ? win_delay : 256;     /* dec byte: из 0 получается 0xFF */
+    if (d > g_passes4)
     {
-        win_delay -= (uint8_t)g_passes4;
+        win_delay = (uint8_t)(d - g_passes4);
         return;
     }
     win_delay = 0x0D;
@@ -484,12 +488,14 @@ uint8_t canmouse_hit(void)
     return 1;
 }
 
+static uint16_t cm_rt;     /* кадр последней проверки обратного хода */
+
 /* 0x2216: мышь высовывается из бака и прячется */
 void canmouse_update(void)
 {
     uint16_t t = ticks();
     if (t == cm_t) return;
-    if (!retrace()) return;
+    if (!retrace_seen(&cm_rt)) return;
     cm_t = t;
     if (canmouse_hit()) return;
     if (!cm_n)

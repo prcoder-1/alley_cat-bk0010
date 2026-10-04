@@ -21,6 +21,24 @@ static uint16_t tick_acc;   /* в четвертях отсчёта */
 static uint16_t tick_cnt;
 static uint16_t pass_acc;
 
+/* кадры 1/60 с (обратный ход луча CGA): 390,625 отсчёта = 3125 восьмых */
+#define FRAME_8 3125u
+#define RETRACE_8 250u      /* обратный ход — 8% периода */
+static uint16_t rt_ph8;     /* фаза в кадре, восьмые отсчёта */
+static uint16_t rt_frame;   /* номер кадра */
+
+static void rt_add(uint16_t d8)
+{
+    uint16_t a = rt_ph8 + d8;
+    while (a >= FRAME_8)
+    {
+        a -= FRAME_8;
+        OPAQUE(a);
+        ++rt_frame;
+    }
+    rt_ph8 = a;
+}
+
 /* обновить счёт времени; вернуть прошедшие отсчёты таймера */
 uint16_t tmr_elapsed(void)
 {
@@ -38,12 +56,27 @@ uint16_t tmr_elapsed(void)
     }
     tick_acc = a;
     pass_acc += d;
+    uint16_t r = d;
+    while (r >= 2048)
+    {
+        r -= 2048;
+        OPAQUE(r);
+        rt_add(16384);
+    }
+    rt_add((uint16_t)(r << 3));
     return d;
 }
 
 static void tmr_update(void)
 {
     tmr_elapsed();
+}
+
+/* отсчётов таймера до следующего тика BIOS */
+uint16_t to_tick(void)
+{
+    tmr_elapsed();
+    return (uint16_t)((TICK_Q - tick_acc) >> 2) + 1;   /* tick_acc — четверти отсчёта */
 }
 
 uint16_t ticks(void)
@@ -74,7 +107,7 @@ void wait_tick(void)
 
 /* ------------------------------------------------------------------ ввод */
 
-uint8_t key_state[K_COUNT];
+uint8_t key_state[(K_COUNT + 1) & ~1] __attribute__((aligned(2)));
 uint16_t key_presses;
 
 /*
@@ -135,7 +168,12 @@ void input_poll(void)
     }
     uint8_t held = 0;
     if ((REG(REG_EXT_DEV) & 0100) == 0) held = 1;
-    for (uint8_t i = 0; i < K_COUNT; ++i) key_state[i] = 0x80;
+    uint16_t *ks = (uint16_t *)key_state;   /* без memset: опрос — в каждом проходе */
+    for (uint8_t i = 0; i < (K_COUNT + 1) / 2; ++i)
+    {
+        ks[i] = 0x8080;
+        OPAQUE(i);
+    }
     if (held)
     {
         uint8_t c = cur_code;
@@ -172,21 +210,30 @@ void hw_init(void)
     tmr_prev = REG(REG_TVE_COUNT);
 }
 
-/* 1/60 с = 390,6 отсчёта таймера; обратный ход — 8% периода */
+/* сейчас обратный ход луча (1/60 с, 8% периода) */
 uint8_t retrace(void)
 {
-    uint16_t c = REG(REG_TVE_COUNT);
-    while (c >= 391 * 32)
+    tmr_elapsed();
+    if (rt_ph8 < RETRACE_8) return 1;
+    return 0;
+}
+
+/*
+ * Для мест, которые ЖДУТ обратного хода: на PC главный цикл проходит ~85 раз
+ * за тик и не пропускает ни одного обратного хода, а проход цикла БК длится
+ * миллисекунды. Поэтому «обратный ход был с прошлой проверки» тоже считается.
+ */
+uint8_t retrace_seen(uint16_t *last)
+{
+    tmr_elapsed();
+    uint16_t f = rt_frame;
+    if (f != *last)
     {
-        c -= 391 * 32;
-        OPAQUE(c);
+        *last = f;
+        return 1;
     }
-    while (c >= 391)
-    {
-        c -= 391;
-        OPAQUE(c);
-    }
-    return c < 31 ? 1 : 0;
+    if (rt_ph8 < RETRACE_8) return 1;
+    return 0;
 }
 
 void ticks_set(uint16_t t)

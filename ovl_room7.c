@@ -236,7 +236,7 @@ static void arrow_update(void)
         if (ar_dir != 1)
         {
             if (ar_x < 5) gone = 1;
-            else ar_x -= 5;
+            ar_x -= 5;          /* 0x61BE: вычитание до проверки заёма */
         }
         else if ((ar_x += 5) >= 0x12C)
             gone = 1;
@@ -280,7 +280,7 @@ static void rival_draw(void)
 static void rival_erase(void)
 {
     if (r.hidden) return;
-    gfx_fill(r.pos, SZ(12, 6), 0x55);
+    gfx_fill(r.pos, SZ(12, 6), SWAPC(0x55));
 }
 
 /* 0x502D: стрела закрывает соперника */
@@ -673,6 +673,7 @@ static void run(void)
     transition();
     draw();
     cat_init_room();
+    dog_reset();      /* 0x1E40 */
     (void)rand16();   /* 0x3405: метлы нет, но ГСЧ расходуется как на PC */
     ar_on = 0;
     rivals_init();

@@ -35,7 +35,8 @@ extern uint16_t g_passes;     /* проходов главного цикла PC
 extern uint8_t g_scratch[];   /* [000E] рабочий буфер спрайта */
 const uint8_t *gptr(uint16_t ds_off);
 /* оверлей регистрирует свои блоки графики */
-void gfx_region(uint8_t slot, uint16_t ds_start, uint16_t ds_end, const uint8_t *data);
+void gfx_region(uint8_t slot, uint16_t ds_start, uint16_t ds_end, const uint8_t *data);  /* слоты 5..7 */
+void gfx_regions_reset(void);
 extern uint8_t item_y;        /* [1673] высота летящего предмета (0 — нет) */
 extern uint16_t g_passes4;    /* то же для блока «каждой 4-й итерации» */
 extern uint8_t g_felicia_next; /* [0418] следующее окно ведёт к Фелиции */

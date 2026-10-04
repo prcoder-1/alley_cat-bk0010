@@ -79,7 +79,7 @@ void wipe(uint8_t pattern)
         uint16_t words = w >> 3;
         if (words)
         {
-            fill_ring(cx, dl, words << 3, h, px, py, pw, ph, pattern);
+            fill_ring(cx, dl, words << 3, h, px, py, pw, ph, SWAPC(pattern));
             px = cx;
             py = dl;
             pw = words << 3;

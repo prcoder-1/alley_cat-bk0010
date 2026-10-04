@@ -32,7 +32,7 @@ enum KEY_IDX
     K_COUNT
 };
 
-extern uint8_t key_state[K_COUNT];  /* DS:06B7 */
+extern uint8_t key_state[(K_COUNT + 1) & ~1];  /* DS:06B7 */
 extern uint16_t key_presses;        /* DS:0693 — счётчик нажатий */
 
 /** Опросить клавиатуру и джойстик, обновить key_state */
@@ -45,7 +45,9 @@ void spk_set(uint8_t on);
 
 /** Аналог 0x13D8 (порт 3DAh, бит 3): идёт ли кадровый обратный ход CGA.
  *  Виртуальный сигнал: период 1/60 с, доля 8% (как в re/pcemu.py). */
+uint16_t to_tick(void);       /* отсчётов таймера до следующего тика */
 uint8_t retrace(void);
+uint8_t retrace_seen(uint16_t *last);   /* обратный ход идёт или был с прошлой проверки */
 
 /** Обновить счёт тиков; вернуть отсчёты таймера (23437,5 Гц) с прошлого вызова */
 uint16_t tmr_elapsed(void);

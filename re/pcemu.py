@@ -229,7 +229,15 @@ class PC:
             return self.port61
         if port == 0x3DA:
             if self.force_retrace is not None:
-                return 0x09 if self.force_retrace else 0
+                v = self.force_retrace
+                if getattr(self, 'in_call', False):
+                    # ожидание фронта внутри процедуры: после 20 одинаковых чтений — переключить
+                    self.rt_reads = getattr(self, 'rt_reads', 0) + 1
+                    if self.rt_reads > 20:
+                        v = not v
+                        if self.rt_reads > 40:
+                            self.rt_reads = 0
+                return 0x09 if v else 0
             self.sub = min(self.sub + 25, self.slice_n - 1)
             t = self.icount + self.sub
             frame = self.tick_insns * 18.2065 / 60
@@ -242,6 +250,10 @@ class PC:
             if self.pit_latch is None:
                 self.sub = min(self.sub + 25, self.slice_n - 1)
                 t = self.icount + self.sub
+                if getattr(self, 'in_call', False):
+                    # call_proc идёт одним куском: время идёт с каждым чтением
+                    self.cp_t = getattr(self, 'cp_t', 0) + 25
+                    t = self.cp_t
                 if self.cyc is not None:
                     v = (65535 - (self.cyc.cycles // 4)) & 0xFFFF
                 else:
@@ -461,7 +473,12 @@ def call_proc(pc, ip, regs=None, max_insns=50_000_000):
         pc.w(r, v)
     pc.push(ret)
     pc.w(UC_X86_REG_IP, ip)
-    pc.mu.emu_start(pc.cs0 * 16 + ip, pc.cs0 * 16 + ret, count=max_insns)
+    pc.in_call = True
+    pc.rt_reads = 0
+    try:
+        pc.mu.emu_start(pc.cs0 * 16 + ip, pc.cs0 * 16 + ret, count=max_insns)
+    finally:
+        pc.in_call = False
     assert pc.r(UC_X86_REG_IP) == ret, 'не вернулась: %04X' % pc.r(UC_X86_REG_IP)
 
 

@@ -19,7 +19,7 @@ uint8_t (*room_extra_land)(void);
 static const uint16_t pot_x[3] = { 0xC0, 0xE0, 0x100 };          /* [37A3] */
 static const uint16_t pot_pos[3] = { POS(0x3F0), POS(0x3F8), POS(0x400) };  /* [37A9] */
 static uint8_t pots_left;      /* [37AF] */
-static uint8_t pot_on[3];      /* [37B0] */
+static uint16_t pot_on[3];     /* [37B0] слова */
 static uint16_t pots_t;        /* [37B8] */
 
 static uint16_t sp_x;          /* [3964] */
@@ -78,7 +78,7 @@ static uint8_t shelf_land(void)
 static void pot_remove(uint8_t i)
 {
     pot_on[i] = 0;
-    gfx_fill(pot_pos[i], SZ(16, 4), 0xAA);
+    gfx_fill(pot_pos[i], SZ(16, 4), SWAPC(0xAA));
     if (--pots_left == 0 && !cat_failed) cat_won = 1;
 }
 
@@ -237,6 +237,24 @@ static void draw(void)
     books_draw();
 }
 
+/* 0x3B30 */
+static void pots_init(void)
+{
+    pots_left = 3;
+    pot_on[0] = pot_on[1] = pot_on[2] = 1;
+}
+
+/* 0x3C90 */
+static void spider_init(void)
+{
+    sp_y = 8;
+    sp_hidden = 1;
+    sp_dir = 0;
+    sp_anim = 2;
+    sp_x = 0x118;
+    sp_frame = 0;
+}
+
 static void run(void)
 {
     g_state = 3;
@@ -245,14 +263,8 @@ static void run(void)
     cat_init_room();
     broom_init();
     dog_reset();
-    pots_left = 3;
-    pot_on[0] = pot_on[1] = pot_on[2] = 1;
-    sp_y = 8;
-    sp_hidden = 1;
-    sp_dir = 0;
-    sp_anim = 2;
-    sp_x = 0x118;
-    sp_frame = 0;
+    pots_init();
+    spider_init();
     snd_rhythm_reset();
     for (;;)
     {

@@ -48,7 +48,7 @@ uint8_t g_felicia_next;
 uint16_t g_fail_pic;
 uint8_t g_scratch[200];
 
-/* Блоки графики: ядро + оверлей. Ищется блок, содержащий смещение. */
+/* Блоки графики: 0..4 — ядро, 5..7 — сцена (сбрасываются при смене сцены). */
 struct gregion { uint16_t start, end; const uint8_t *data; };
 static struct gregion regions[8] = {
     { 0x000E, 0x000E + sizeof g_scratch, g_scratch },
@@ -63,6 +63,11 @@ void gfx_region(uint8_t slot, uint16_t ds_start, uint16_t ds_end, const uint8_t 
     regions[slot].start = ds_start;
     regions[slot].end = ds_end;
     regions[slot].data = data;
+}
+
+void gfx_regions_reset(void)
+{
+    for (uint8_t i = 5; i < 8; ++i) regions[i].end = 0;
 }
 
 const uint8_t *gptr(uint16_t off)

@@ -107,8 +107,12 @@ uint16_t tmr_elapsed(void)
     return 3;
 }
 uint8_t retrace(void) { return host_retrace; }
+uint8_t retrace_seen(uint16_t *last) { (void)last; return host_retrace; }
+void tone_sq(uint16_t hp, uint16_t counts) { (void)hp; (void)counts; }
+uint16_t umulhi(uint16_t a, uint16_t b) { return (uint16_t)(((uint32_t)a * b) >> 16); }
 void wait_tick(void) { ++host_ticks; }
-uint8_t key_state[22];
+uint16_t to_tick(void) { return 1; }
+uint8_t key_state[22] __attribute__((aligned(2)));
 uint16_t key_presses;
 void input_poll(void) {}
 void spk_set(uint8_t on) { (void)on; }

@@ -81,8 +81,8 @@ static uint8_t fish_hit(void)
             uint8_t dl = cat_y >= 0xB5 ? 0xB4 : cat_y;
             blit(POS_XY(cx, dl), SZ(18, 10), d_zap, BM_COPY);
             snd_zap_init();
-            uint16_t t0 = ticks();
-            while ((uint16_t)(ticks() - t0) < 0x0D) snd_zap();
+            fish_t = ticks();   /* 0x353F: таймер разряда — та же ячейка [3509] */
+            while ((uint16_t)(ticks() - fish_t) < 0x0D) snd_zap();
             return 0;
         }
         ++eaten;
@@ -142,9 +142,10 @@ static void fish_update(void)
     else if (bx == 12)
         fish_t = fish_t2;
     if (fish_gone[bx]) return;
-    if ((uint8_t)rand16() <= 0x10)
+    uint8_t r = (uint8_t)rand16();
+    if (r <= 0x10)
     {
-        fish_dir[bx] = (rand16() & 1) ? 1 : 0xFF;
+        fish_dir[bx] = (r & 1) ? 1 : 0xFF;      /* то же число, что и для проверки */
         fish_ydir[bx] = (rand16() & 1) ? 1 : 0xFF;
     }
     uint16_t cx = bx < 12 ? 4 : 2;
@@ -363,7 +364,7 @@ set:
 /* 0x2790, ветка state 2: вода и поверхность */
 static void draw(void)
 {
-    gfx_fill_rows(0, 4, 0xAA);
+    gfx_fill_rows(0, 4, SWAPC(0xAA));
     for (uint8_t i = 0; i < 0x28; ++i)
     {
         uint8_t dl;
@@ -408,5 +409,5 @@ void ovl_entry(void)
     hooks.busy = 0;
     hooks.swim = swim;
     hooks.floor_step = 0;
-    gfx_region(4, 0x06D0, 0x09DA, d_swim);
+    gfx_region(7, 0x06D0, 0x09DA, d_swim);
 }

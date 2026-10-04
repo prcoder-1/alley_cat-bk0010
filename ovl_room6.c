@@ -246,7 +246,7 @@ static void dogs_update(void)
                 }
                 else
                     cat_erase();
-                gfx_fill(pos_of(dog_kill_pos), SZ(13, 10), 0xAA);
+                gfx_fill(pos_of(dog_kill_pos), SZ(13, 10), SWAPC(0xAA));
                 broom_draw();
                 cat_draw();
                 dog_hit_force();

@@ -3,6 +3,7 @@
  */
 #include "alley.h"
 #include "game.h"
+#include "gfx.h"
 #include "data_wash.h"
 
 /* 0x06DE: половинка вещи 8x8 в левую или правую половину буфера */
@@ -25,8 +26,8 @@ static uint8_t wash_half(uint8_t *dst)
 void wash_make(uint8_t lo, uint8_t hi)
 {
     wash_mask = 0;
-    for (uint8_t i = 0; i < 64; ++i) wash_buf[i] = 0xAA;
-    wash_buf[4] = wash_buf[5] = wash_buf[6] = wash_buf[7] = 0x11;  /* верёвка 0x4444 */
+    for (uint8_t i = 0; i < 64; ++i) wash_buf[i] = SWAPC(0xAA);
+    wash_buf[4] = wash_buf[5] = wash_buf[6] = wash_buf[7] = SWAPC(0x11);  /* верёвка 0x4444 */
     uint16_t r = rand16();
     if ((uint8_t)r < lo || (uint8_t)(r >> 8) <= hi) return;
     r = rand16();

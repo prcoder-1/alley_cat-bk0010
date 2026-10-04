@@ -1,21 +1,15 @@
 #!/usr/bin/env python3
 """a.out (pdp11) -> .BIN БК: заголовок (адрес, длина) + text + data; bss не пишется.
-mkbin.py --check file.out LIMIT — проверить, что образ с bss кончается не дальше LIMIT."""
+mkbin.py --check file.out START LIMIT — проверить, что образ с bss кончается не дальше LIMIT."""
 import struct, sys
 if sys.argv[1] == '--check':
+    # mkbin.py --check file.out START LIMIT: образ с bss от START кончается не дальше LIMIT
     d = open(sys.argv[2], 'rb').read()
-    _, t, dd, b = struct.unpack('<4H', d[2:10])
-    import subprocess
-    nm = subprocess.run(['pdp11-aout-objdump', '-h', sys.argv[2]], capture_output=True, text=True).stdout
-    start = None
-    for l in nm.splitlines():
-        p = l.split()
-        if len(p) > 3 and p[1] == '.text':
-            start = int(p[3], 16)
-    end = start + t + dd + b
-    lim = int(sys.argv[3], 0)
+    _, t, dd, b = struct.unpack('<4H', d[:8])
+    end = int(sys.argv[3], 0) + t + dd + b
+    lim = int(sys.argv[4], 0)
     if end > lim:
-        sys.exit('%s: конец %06o > предела %06o' % (sys.argv[2], end, lim))
+        sys.exit('ПРЕДЕЛ: %s кончается на %06o > %06o' % (sys.argv[2], end, lim))
     sys.exit(0)
 src, dst = sys.argv[1], sys.argv[2]
 d = open(src, 'rb').read()

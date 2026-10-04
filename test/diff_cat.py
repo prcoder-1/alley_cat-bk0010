@@ -73,7 +73,7 @@ def run(seed, steps, level=1, inputs_seed=0):
                     if x % 5 == 4: continue
                     bx = x - x//5
                     b = (vr[(y+28)*64 + bx//4] >> (2*(bx%4))) & 3
-                    if b != px[y][x]:
+                    if b != [0, 2, 1, 3][px[y][x]]:
                         print('шаг', step, 'пиксель', bx, y, 'PC', px[y][x], 'порт', b, 'кот', pc.dsw(0x579), pc.dsb(0x57B), 'пёс', pc.dsb(0x1CBF), pc.dsb(0x1CB8), pc.dsw(0x1CC6)); return False
         if pos_of(pc.dsw(0x55F)) != v16('cat_pos').value:
             print('шаг %d: cat_pos PC=%04X порт=%04X'%(step,pos_of(pc.dsw(0x55F)),v16('cat_pos').value)); return False
@@ -84,7 +84,7 @@ def run(seed, steps, level=1, inputs_seed=0):
     for y in range(200):
         for x in range(256):
             b = vr[(y+28)*64 + x//4]; b = (b >> (2*(x%4))) & 3
-            if b != pcs[y][x]:
+            if b != [0, 2, 1, 3][pcs[y][x]]:
                 bad += 1
                 if bad <= 5: print('  пиксель', x, y, 'PC', pcs[y][x], 'порт', b)
     print('seed %04X: %d шагов совпали, отличий на экране: %d' % (seed, steps, bad))

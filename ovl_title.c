@@ -1,7 +1,8 @@
 /*
  * Оверлей TITLE: заставка (CAT.EXE 0x5CB0, музыка 0x53B0, кот 0x5DD4,
- * мигание 0x5E3B) и меню (0x5EE5). Текст меню переписан под клавиатуру БК
- * и 32 знакоместа шрифта ПЗУ; проверки адаптера джойстика (0x5FE5) нет.
+ * мигание 0x5E3B) и меню (0x5EE5). Заставка выводится без сжатия, с обрезкой
+ * краёв (центральные 256 точек из 320). Текст меню переписан под клавиатуру
+ * БК и 32 знакоместа шрифта ПЗУ; проверки адаптера джойстика (0x5FE5) нет.
  */
 #include "alley.h"
 #include "cat.h"
@@ -51,6 +52,7 @@ static void music(void)
 
 /* 0x5DD4: кот бродит по забору */
 static uint16_t demo_t;       /* [6A88] */
+static uint16_t demo_rt;      /* кадр последней проверки обратного хода */
 static void demo_cat(void)
 {
     if (cat_x <= 0x20) in_dx = 1;
@@ -66,7 +68,7 @@ static void demo_cat(void)
             if (dl <= 0xA0) in_dx = (dl & 1) ? 1 : 0xFF;
         }
     }
-    if (retrace())
+    if (retrace_seen(&demo_rt))
     {
         cat_speed = 4;
         cat_update();
@@ -75,6 +77,7 @@ static void demo_cat(void)
 
 static void title_run(void)
 {
+    gfx_mode(1);         /* заставка без сжатия: всё нужное лежит в точках 56..272 */
     g_state = 0;
     item_y = 0;          /* 0x1830: окна; остальное состояние двора — в его оверлее */
     g_item_thrown = 0;
@@ -122,9 +125,14 @@ static void title_run(void)
             }
             else if (dx > t_title_len[0] + 6)
                 return;
-            music();
+            /*
+             * На БК тон звучит, только пока процессор в tone_sq, а работа цикла
+             * занимает миллисекунды. Поэтому сначала работа, потом смена ноты,
+             * и нота звучит сплошняком до конца тика (пауза — между нотами).
+             */
             demo_cat();
-            snd_idle(48);
+            music();
+            snd_idle_tick();
             input_poll();
             if (g_joy)
             {
