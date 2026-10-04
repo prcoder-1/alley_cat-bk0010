@@ -14,7 +14,7 @@ OVL_ALLEY=ovl_alley.o alley.o alley_land.o wash.o data_alley.o data_wash.o
 
 OVERLAYS=TITLE INTER ALLEYBG ALLEY ROOM1 ROOM2 ROOM3 ROOM4 ROOM5 ROOM6 ROOM7
 
-all: $(OUT)/CAT.BIN $(OUT)/HI $(addprefix $(OUT)/,$(OVERLAYS))
+all: $(OUT)/CAT.BIN $(OUT)/HI $(addprefix $(OUT)/,$(OVERLAYS)) $(OUT)/ALLEYCAT.IMG
 
 DATA_H=data_kernel.h data_bonus.h data_inter.h data_title.h data_alley.h data_alleybg.h data_wash.h data_room.h data_room1.h data_room2.h data_room3.h data_room4.h data_room5.h data_room6.h data_room7.h
 
@@ -67,6 +67,13 @@ $(foreach r,1 3 4 5 6,$(eval $(call overlay,ROOM$(r),ovl_room$(r).o room.o data_
 $(eval $(call overlay,ROOM2,ovl_room2.o data_room2.o))
 $(eval $(call overlay,ROOM7,ovl_room7.o bonus.o data_room7.o data_bonus.o))
 
+# дискета ANDOS с игрой: чистый ANDOS.IMG + ядро (с автостартом), HI и сцены
+GAME_FILES=$(OUT)/CAT.BIN $(OUT)/HI $(addprefix $(OUT)/,$(OVERLAYS))
+$(OUT)/ALLEYCAT.IMG: ANDOS.IMG mkandos.py $(GAME_FILES) | $(OUT)
+	python3 mkandos.py ANDOS.IMG $@ +$(GAME_FILES)
+
+andos: $(OUT)/ALLEYCAT.IMG
+
 sizes: all
 	@pdp11-aout-size kernel.out HI.out $(addsuffix .out,$(OVERLAYS))
 
@@ -76,5 +83,5 @@ asm-files:
 clean:
 	rm -f *.o *.out *.map $(OUT)/*
 
-.PHONY: all clean asm-files sizes
+.PHONY: all clean asm-files sizes andos
 .SECONDARY:

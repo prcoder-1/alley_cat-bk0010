@@ -202,9 +202,14 @@ void spk_set(uint8_t on)
     REG(REG_EXT_DEV) = on ? 0100 : 0;
 }
 
+void vram_clear(void)
+{
+    for (uint16_t *p = (uint16_t *)040000; p < (uint16_t *)0100000; ++p) *p = 0;
+}
+
 void hw_init(void)
 {
-    for (uint16_t *p = (uint16_t *)040000; p < (uint16_t *)0100000; ++p) *p = 0;   /* стереть служебную строку монитора */
+    vram_clear();   /* стереть служебную строку монитора */
     REG(REG_TVE_LIMIT) = 0177777;
     REGB(REG_TVE_CSR) = (1 << TVE_CSR_RUN);
     tmr_prev = REG(REG_TVE_COUNT);

@@ -20,6 +20,7 @@ uint16_t loop_passes(void);
 void wait_tick(void);
 
 void hw_init(void);
+void vram_clear(void);
 
 /*
  * Ввод в терминах оригинала: состояния клавиш таблицы DS:06B7 (0 = нажата,
