@@ -7,7 +7,7 @@ AS=pdp11-aout-as
 LD=pdp11-aout-ld
 OUT=bin
 
-KERNEL_OBJ=crt0.o gfxc.o hw.o common.o helpers.o divmulmod.o memory.o \
+KERNEL_OBJ=crt0.o gfxc.o hw.o common.o helpers.o divmulmod.o memory.o font.o \
 	cat.o dog.o snd.o score.o text.o ovl.o main.o inl.o
 OVL_ALLEYBG=ovl_alleybg.o alley_bg.o wash.o data_alleybg.o data_wash.o
 OVL_ALLEY=ovl_alley.o alley.o alley_land.o wash.o data_alley.o data_wash.o

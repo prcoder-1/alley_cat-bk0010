@@ -1,5 +1,5 @@
 /*
- * Текст шрифтом ПЗУ монитора БК (адрес 0112276 — знак 040, 10 байт на знак,
+ * Текст шрифтом монитора БК-0010 (копия в font.s: знаки 040..0137 по 8 байт,
  * младший бит — левый пиксель). Знакоместо 8x8 пикселей БК, 32 в строке.
  * Пауза (0x5E70).
  */
@@ -13,7 +13,8 @@
 extern const uint8_t host_font[];
 #define FONT host_font
 #else
-#define FONT ((const uint8_t *)0112276)
+extern const uint8_t font[];   /* font.s: ПЗУ монитора на БК-0011М и в Std10 СМК на ней нет */
+#define FONT font
 #endif
 
 #ifdef HOST
@@ -42,10 +43,8 @@ void text_at(uint8_t y, uint8_t col, const char *s, uint8_t color)
     {
         uint16_t c = (uint8_t)*s;
         if (c >= 'a' && c <= 'z') c -= 040;   /* на месте строчных латинских в ПЗУ — кириллица */
-        c = (uint16_t)((c - 040) << 1);
-        uint16_t c8 = (uint16_t)(c << 2);
-        asm ("" : "+r" (c8));   /* иначе gcc соберёт c*10 в вызов __mulhi3 */
-        text_glyph(p, FONT + c8 + c, nf);
+        if (c < 040 || c > 0137) c = ' ';
+        text_glyph(p, FONT + ((c - 040) << 3), nf);
     }
 }
 

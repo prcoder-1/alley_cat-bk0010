@@ -68,9 +68,29 @@ static uint8_t load(const char *n, uint8_t *addr)
     return pb.RESPONSE;
 }
 
+/* сообщение и стоп; только средствами ядра: блиттер (HI) ещё не загружен */
+extern const uint8_t font[];   /* font.s */
+
 static void fail(const char *msg)
 {
-    text_at(100, 2, msg, 3);
+    static const uint8_t spread[16] =
+    {
+        0, 03, 014, 017, 060, 063, 074, 077, 0300, 0303, 0314, 0317, 0360, 0363, 0374, 0377,
+    };
+    vram_clear();   /* буфер загрузки в видеопамяти */
+    volatile uint8_t *p = (volatile uint8_t *)VRAM_ADDR(100) + 4;
+    for (; *msg; ++msg, p += 2)
+    {
+        uint8_t c = (uint8_t)*msg;
+        if (c < 040 || c > 0137) c = ' ';
+        const uint8_t *g = font + ((uint16_t)(c - 040) << 3);
+        volatile uint8_t *d = p;
+        for (uint8_t r = 0; r < 8; ++r, d += 64)
+        {
+            d[0] = spread[g[r] & 15];
+            d[1] = spread[g[r] >> 4];
+        }
+    }
     for (;;) ;
 }
 
@@ -92,9 +112,29 @@ void ovl_warm(void)
 void ovl_init(void)
 {
     if (!cold) return;
-    /* слово версии 0167776 под ANDOS не годится: там ПЗУ контроллера дисковода */
+    /* наличие платы — пробой страниц, а не словом 0167776: в эмуляторе с КНГМД
+     * там ПЗУ дисковода */
     smk_home = smk_probe();
     if (!smk_home) fail("NEED SMK-512");
+    /* слово модели в ПЗУ платы: 176000/176400/177000 — 64/128/256 Кбайт, там
+     * страницы 2..13 легли бы на 0..1 и друг на друга */
+    uint16_t model = *(volatile uint16_t *)0167776 & 0177400;
+    if (model >= 0176000 && model <= 0177000) fail("NEED SMK-512 (512K)");
+    for (uint8_t id = 0; id < sizeof names / sizeof names[0]; ++id)
+    {
+        smk_page(id);
+        *(volatile uint16_t *)OVL_ADDR = (uint16_t)(0x5A00 | id);
+    }
+    for (uint8_t id = 0; id < sizeof names / sizeof names[0]; ++id)
+    {
+        smk_page(id);
+        if (*(volatile uint16_t *)OVL_ADDR != (uint16_t)(0x5A00 | id))
+        {
+            smk_set(smk_home);
+            fail("NEED SMK-512 (512K)");
+        }
+    }
+    smk_set(smk_home);
     if (load("HI", HI_BUF)) fail("HI");
     for (uint8_t id = 0; id < sizeof names / sizeof names[0]; ++id)
     {
