@@ -55,7 +55,10 @@ void cat_save_bg(void)
 /* 0x1145: вывести кота (AND) со снятием фона */
 void cat_draw(void)
 {
-    static const uint8_t tint_fill[4] = { 0x00, SWAPC(0x55), SWAPC(0xAA), 0xFF };
+    /* кончается воздух: на PC цвет фона (чёрное) 0 -> синий -> пурпурный -> красный
+     * (int 10h, BL = 1, 5, 4). Цвета БК: синий, красный, красный — не зелёный:
+     * зелёный — вода, кот в нём пропадал */
+    static const uint8_t tint_fill[4] = { 0x00, 0x55, 0xFF, 0xFF };
     cat_size = cat_nsize;
     cat_noerase = 0;
     gfx_ntint = (uint8_t)~tint_fill[cat_tint];
@@ -346,9 +349,16 @@ void cat_update(void)
     }
     else
         cat_sub = ax = 0x20;
+    /*
+     * Обратный ход луча. На PC смена тика ждёт его, опрашивая каждый проход
+     * (0,4 мс), — у нас защёлка «был с прошлой проверки». Вторая попытка в
+     * тике (после 0x20 проходов) на PC одна и почти никогда не попадает в
+     * обратный ход: тут — тоже проверка «идёт сейчас», иначе кот в воде и
+     * стоящий кот обновлялись бы вдвое чаще.
+     */
     if (g_state == 2 || (cat_vdir | cat_dir) == 0)
     {
-        if (!retrace_seen(&cat_rt)) return;
+        if (ax ? !retrace_seen(&cat_rt) : !retrace()) return;
     }
     cat_tick = t;
     cat_tick_lo = ax;    /* 0x092A */
