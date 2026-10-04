@@ -28,15 +28,15 @@ data_%.c data_%.h: re/data_%.py re/mkdata.py
 	cd re && python3 mkdata.py $*
 
 
-# блиттер и константы ядра: копия в каждой странице СМК с 0145000
+# блиттер и константы ядра: копия в каждой странице СМК с 0144000
 HI_OBJ=gfx.o gfxtab.o data_kernel.o
 HI.out: $(HI_OBJ) hi.ld
 	$(LD) -T hi.ld -Map HI.map -o $@ $(HI_OBJ)
-	@python3 mkbin.py --check $@ 0o145000 0o160000
+	@python3 mkbin.py --check $@ 0o144000 0o160000
 
 kernel.out: $(KERNEL_OBJ) kernel.ld HI.out
 	$(LD) -T kernel.ld -R HI.out -Map kernel.map -o $@ $(KERNEL_OBJ)
-	@python3 mkbin.py --check $@ 0o1000 0o37400
+	@python3 mkbin.py --check $@ 0o1000 0o36000
 
 $(OUT):
 	mkdir -p $(OUT)
@@ -45,7 +45,7 @@ $(OUT)/CAT.BIN: kernel.out | $(OUT)
 	python3 mkbin.py $< $@
 
 $(OUT)/HI: HI.out | $(OUT)
-	python3 mkbin.py $< $@ 0o145000
+	python3 mkbin.py $< $@ 0o144000
 
 # сцена: окно СМК с 0120000 до блока HI
 OVL_BASE=0o120000
@@ -53,7 +53,7 @@ OVL_BASE=0o120000
 define overlay
 $(1).out: ovlhdr.o $(2) kernel.out ovl.ld
 	$(LD) -T ovl.ld --defsym=OVL=0120000 -R kernel.out -R HI.out -Map $(1).map -o $$@ ovlhdr.o $(2)
-	@python3 mkbin.py --check $$@ 0o120000 0o145000
+	@python3 mkbin.py --check $$@ 0o120000 0o144000
 $(OUT)/$(1): $(1).out | $(OUT)
 	python3 mkbin.py $$< $$@ $$(OVL_BASE)
 endef

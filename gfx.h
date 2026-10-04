@@ -14,6 +14,8 @@ void gfx_blit(uint16_t pos, uint16_t size, const uint8_t *src, uint8_t *save, ui
 void gfx_save(uint16_t pos, uint16_t size, uint8_t *buf);
 void gfx_restore(uint16_t pos, uint16_t size, const uint8_t *buf);
 uint16_t gfx_span(uint16_t pos, uint16_t size);
+/* выполнить отложенное стирание gfx_restore (до прямой записи в экран, ожидания и смены сцены) */
+void gfx_flush(void);
 
 enum BLIT_MODE { BM_COPY, BM_AND, BM_KEY, BM_OR, BM_TINT };
 extern uint16_t gfx_ntint;   /* для BM_TINT: ~(байт цвета подкраски) */

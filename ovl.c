@@ -1,7 +1,7 @@
 /*
  * Сцены в ДОЗУ СМК-512: у каждой своя страница (режим Std10, окно
  * 0120000..0157777): файл сцены с 0120000 и общий блок HI (блиттер,
- * константы ядра) с 0145000. Первое слово сцены — её вход ovl_entry().
+ * константы ядра) с 0144000. Первое слово сцены — её вход ovl_entry().
  *
  * Файлы читаются EMT 36 при раскладке, в которой запущена игра (SYS,
  * страница 0): под ANDOS там его резидент с обработчиком EMT 36. Поэтому
@@ -11,13 +11,14 @@
 #include "emt.h"
 #include "game.h"
 #include "hw.h"
+#include "gfx.h"
 
 struct ovl_ops ovl;
 
 #define OVL_ADDR ((uint8_t *)0120000)
-#define HI_ADDR  ((uint8_t *)0145000)
-#define OVL_SIZE (0145000 - 0120000)
-#define HI_SIZE  (0160000 - 0145000)
+#define HI_ADDR  ((uint8_t *)0144000)
+#define OVL_SIZE (0144000 - 0120000)
+#define HI_SIZE  (0160000 - 0144000)
 #define HI_BUF   ((uint8_t *)040000)              /* буферы — в видеопамяти */
 #define OVL_BUF  ((uint8_t *)(040000 + HI_SIZE))   /* до 0100000 ровно */
 #define SMK_STD10 060
@@ -38,7 +39,7 @@ static const uint16_t page_code[] =
 
 uint16_t smk_probe(void);   /* helpers.s */
 
-static struct EMT_36_PARAMS pb;
+static struct EMT_36_PARAMS pb __attribute__((aligned(2)));
 
 static void smk_page(uint8_t n)
 {
@@ -90,8 +91,12 @@ void ovl_init(void)
     vram_clear();
 }
 
+static uint16_t page_on;  /* включена страница сцены (в ней блиттер) */
+
 void ovl_load(uint8_t id)
 {
+    if (page_on) gfx_flush();
+    page_on = 1;
     gfx_regions_reset();
     smk_page(id);
     ((void (*)(void))OVL_ADDR)();

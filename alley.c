@@ -93,6 +93,7 @@ static void rope_scroll(uint8_t r, const uint8_t *col)
     /* сдвиг (4t - 5k) после шага: m+1 -> 0,4,3,2,1 */
     static const uint8_t ofs_t[5] = { 0, 4, 3, 2, 1 };
     uint8_t o = ofs_t[rope_m[r]];
+    gfx_flush();
     volatile uint8_t *row = (volatile uint8_t *)(VRAM_ADDR(rp_row[r]));
     for (uint8_t y = 0; y < 16; ++y, row += 64)
     {

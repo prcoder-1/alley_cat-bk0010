@@ -13,6 +13,7 @@
 #include "snd.h"
 #include "game.h"
 #include "hw.h"
+#include "gfx.h"
 #include "cat.h"
 #include "dog.h"
 #include "data_kernel.h"
@@ -70,6 +71,7 @@ static uint16_t half_period(uint16_t div)
 /* играть тон div в течение counts отсчётов таймера БК (0 — молчать) */
 static void tone_run(uint16_t div, uint16_t counts)
 {
+    gfx_flush();
     tone_sq(div ? half_period(div) : 0, counts);
     tmr_elapsed();
 }

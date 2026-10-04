@@ -43,6 +43,7 @@ void gfx_fill2(uint16_t pos, uint16_t size, uint8_t b0, uint8_t b1)
 
 void gfx_fill_rows(uint8_t row, uint8_t rows, uint8_t pattern)
 {
+    gfx_flush();
     uint16_t v = (uint16_t)(pattern | (pattern << 8));
     volatile uint16_t *p = (volatile uint16_t *)(VRAM_BASE + ((uint16_t)(row + 28) << 6));
     for (uint16_t n = (uint16_t)rows << 5; n; --n) *p++ = v;

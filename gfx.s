@@ -7,14 +7,23 @@
 /
 / pos  = строка<<8 | столбец CGA (0..79)
 / size = строк<<8 | ширина в байтах CGA (1..40)
+/
+/ Против мерцания: gfx_restore откладывается, и если следующий gfx_blit рисует
+/ тот же объект (тот же буфер фона), стирание и вывод собираются в буфере
+/ ctemp (ОЗУ СМК) и выходят на экран одним копированием. Любой другой вывод
+/ и gfx_flush сначала выполняют отложенное стирание.
 
-	.globl _gfx_blit, _gfx_restore, _gfx_save, _gfx_span, _gfx_fillu, _text_glyph
+	.globl _gfx_blit, _gfx_restore, _gfx_save, _gfx_span, _gfx_fillu, _text_glyph, _gfx_flush
 	.globl _tone_sq, _umulhi
 	.globl _gfx_j0, _gfx_je, _gfx_rel0, _gfx_ntint, _gfx_mode
 	.globl _gfx_j0c, _gfx_jec, _gfx_rel0c
 
 	VRAM = 040000
 	ROW0 = 28			/ 200 строк картинки по центру окна 256
+
+	CT_W = 16			/ ctemp: 16 байт x 48 строк в ОЗУ БК за ядром
+	CT_H = 48
+	ctemp = 036000
 
 	.text
 
@@ -61,14 +70,13 @@ geom:
 	clrb	r0
 	swab	r0			/ строка
 	add	$ROW0, r0
-	asl	r0
-	asl	r0
-	asl	r0
-	asl	r0
-	asl	r0
-	asl	r0
-	add	$VRAM, r0
+	sub	g_vrow, r0		/ куда выводим: экран или ctemp
+	mov	g_vsh, r2
+1:	asl	r0
+	sob	r2, 1b
+	add	g_vbase, r0
 	add	r4, r0
+	sub	g_vcol, r0
 	mov	r0, g_addr
 	rts	pc
 
@@ -126,6 +134,7 @@ _gfx_save:
 	mov	r3, -(sp)
 	mov	r4, -(sp)
 	mov	r5, -(sp)
+	jsr	pc, flush
 	mov	012(sp), r0
 	mov	014(sp), r1
 	jsr	pc, geom
@@ -139,25 +148,49 @@ _gfx_save:
 	mov	r3, r1
 2:	movb	(r1)+, (r4)+
 	sob	r2, 2b
-	add	$64, r3
+	add	g_vstr, r3
 	sob	r5, 1b
 	jmp	ret4
 
-/ void gfx_restore(pos, size, const uint8_t *buf): вернуть фон; в крайних байтах —
-/ только пиксели внутри прямоугольника CGA (соседние принадлежат другим объектам)
+/ void gfx_restore(pos, size, const uint8_t *buf): вернуть фон (отложенно, см. выше)
 _gfx_restore:
 	mov	r2, -(sp)
 	mov	r3, -(sp)
 	mov	r4, -(sp)
 	mov	r5, -(sp)
-	mov	012(sp), r0
-	mov	014(sp), r1
+	jsr	pc, flush
+	mov	012(sp), pend_pos
+	mov	014(sp), pend_size
+	mov	016(sp), pend_buf
+	jmp	ret4
+
+/ void gfx_flush(void): выполнить отложенное стирание
+_gfx_flush:
+	mov	r2, -(sp)
+	mov	r3, -(sp)
+	mov	r4, -(sp)
+	mov	r5, -(sp)
+	jsr	pc, flush
+	jmp	ret4
+
+flush:
+	mov	pend_buf, rs_buf
+	beq	9f
+	clr	pend_buf
+	mov	pend_pos, r0
+	mov	pend_size, r1
+	jsr	pc, rst
+9:	rts	pc
+
+/ вернуть фон: r0 = pos, r1 = size, rs_buf — буфер; в крайних байтах — только
+/ пиксели внутри прямоугольника CGA (соседние принадлежат другим объектам)
+rst:
 	jsr	pc, geom
 	tst	g_nb
 	bgt	1f
-	jmp	ret4
+	rts	pc
 1:	jsr	pc, masks
-	mov	016(sp), r4
+	mov	rs_buf, r4
 	mov	g_addr, r3
 	mov	g_rows, g_left
 1:	mov	r3, r1
@@ -172,10 +205,10 @@ _gfx_restore:
 	sob	r2, 4b
 2:	mov	g_mlast, r0
 	jsr	pc, mbyte
-3:	add	$64, r3
+3:	add	g_vstr, r3
 	dec	g_left
 	bne	1b
-	jmp	ret4
+	rts	pc
 
 / void gfx_fillu(pos, size, uint8_t pattern): заливка однотонным байтом (все 4 пикселя
 / одного цвета, т.е. образец не зависит от сдвига) — словами
@@ -184,6 +217,7 @@ _gfx_fillu:
 	mov	r3, -(sp)
 	mov	r4, -(sp)
 	mov	r5, -(sp)
+	jsr	pc, flush
 	mov	012(sp), r0
 	mov	014(sp), r1
 	jsr	pc, geom
@@ -221,7 +255,7 @@ _gfx_fillu:
 	movb	r5, (r1)+
 4:	mov	g_mlast, r0
 	jsr	pc, fmbyte
-5:	add	$64, r3
+5:	add	g_vstr, r3
 	dec	g_left
 	bne	1b
 	jmp	ret4
@@ -345,18 +379,155 @@ _gfx_blit:
 	mov	r3, -(sp)
 	mov	r4, -(sp)
 	mov	r5, -(sp)
-	mov	012(sp), r0
-	mov	014(sp), r1
+	mov	012(sp), a_pos
+	mov	014(sp), a_size
+	mov	016(sp), a_src
+	mov	020(sp), a_save
+	mov	022(sp), a_mode
+	mov	024(sp), a_stride
+	tst	pend_buf
+	beq	1f
+	cmp	a_save, pend_buf
+	beq	comp
+	jsr	pc, flush
+1:	jsr	pc, blt
+	jmp	ret4
+
+/ стирание + вывод одного объекта через ctemp
+comp:
+	mov	pend_pos, r0
+	mov	pend_size, r1
 	jsr	pc, geom
 	tst	g_nb
 	bgt	1f
+	clr	pend_buf		/ старого на экране нет
+	jsr	pc, blt
 	jmp	ret4
-1:	mov	016(sp), g_src
-	mov	020(sp), g_save
-	mov	022(sp), r0
+1:	mov	g_addr, r5		/ старый: адрес, байт, строк
+	mov	g_nb, o_nb
+	mov	g_rows, o_rows
+	mov	a_pos, r0
+	mov	a_size, r1
+	jsr	pc, geom
+	tst	g_nb
+	bgt	1f
+	jsr	pc, flush
+	jmp	ret4
+	/ строки и столбцы экрана: смещение >> 6 и & 077
+1:	sub	$VRAM, r5
+	mov	r5, r0
+	bic	$0177700, r0		/ co
+	asl	r5
+	asl	r5
+	swab	r5
+	bic	$0177400, r5		/ ro
+	mov	g_addr, r3
+	sub	$VRAM, r3
+	mov	r3, r1
+	bic	$0177700, r1		/ cn
+	asl	r3
+	asl	r3
+	swab	r3
+	bic	$0177400, r3		/ rn
+	/ rA = min(ro, rn), rB = max(ro + o_rows, rn + n_rows)
+	mov	r5, r2
+	cmp	r3, r2
+	bhis	1f
+	mov	r3, r2
+1:	mov	r2, u_r
+	add	o_rows, r5
+	add	g_rows, r3
+	cmp	r3, r5
+	blos	1f
+	mov	r3, r5
+1:	sub	r2, r5			/ высота
+	mov	r5, u_h
+	/ cA = min(co, cn), cB = max(co + o_nb, cn + n_nb)
+	mov	r0, r2
+	cmp	r1, r2
+	bhis	1f
+	mov	r1, r2
+1:	mov	r2, u_c
+	add	o_nb, r0
+	add	g_nb, r1
+	cmp	r1, r0
+	blos	1f
+	mov	r1, r0
+1:	sub	r2, r0			/ ширина
+	mov	r0, u_w
+	cmp	r0, $CT_W
+	bhi	2f
+	cmp	r5, $CT_H
+	blos	3f
+2:	jsr	pc, flush		/ не помещается в ctemp — по-старому
+	jsr	pc, blt
+	jmp	ret4
+	/ экран -> ctemp
+3:	jsr	pc, uaddr
+	mov	$ctemp, r4
+	mov	u_h, r5
+1:	mov	r3, r1
+	mov	r4, r0
+	mov	u_w, r2
+2:	movb	(r1)+, (r0)+
+	sob	r2, 2b
+	add	$64, r3
+	add	$CT_W, r4
+	sob	r5, 1b
+	/ стереть и нарисовать в ctemp
+	mov	$ctemp, g_vbase
+	mov	$4, g_vsh
+	mov	$CT_W, g_vstr
+	mov	u_r, g_vrow
+	mov	u_c, g_vcol
+	jsr	pc, flush
+	jsr	pc, blt
+	mov	$VRAM, g_vbase
+	mov	$6, g_vsh
+	mov	$64, g_vstr
+	clr	g_vrow
+	clr	g_vcol
+	/ ctemp -> экран
+	jsr	pc, uaddr
+	mov	$ctemp, r4
+	mov	u_h, r5
+1:	mov	r3, r1
+	mov	r4, r0
+	mov	u_w, r2
+2:	movb	(r0)+, (r1)+
+	sob	r2, 2b
+	add	$64, r3
+	add	$CT_W, r4
+	sob	r5, 1b
+	jmp	ret4
+
+/ r3 = адрес экрана для (u_r, u_c)
+uaddr:
+	mov	u_r, r3
+	asl	r3
+	asl	r3
+	asl	r3
+	asl	r3
+	asl	r3
+	asl	r3
+	add	$VRAM, r3
+	add	u_c, r3
+	rts	pc
+
+/ вывод спрайта по a_pos..a_stride в текущую цель (экран или ctemp)
+blt:
+	mov	a_pos, r0
+	mov	a_size, r1
+	jsr	pc, geom
+	tst	g_nb
+	bgt	1f
+	rts	pc
+1:	mov	a_src, g_src
+	mov	a_save, g_save
+	mov	a_mode, r0
 	asl	r0
 	mov	ops(r0), g_op
-	mov	024(sp), r1
+	mov	a_stride, r1
 	bne	1f
 	mov	g_w, r1
 1:	cmp	r1, $1			/ 1 = повторять одну строку
@@ -530,11 +701,11 @@ optint:
 	bisb	r0, (r1)+
 	sob	r2, 1b
 
-9:	add	$64, r3
+9:	add	g_vstr, r3
 	dec	g_left
 	beq	1f
 	jmp	row
-1:	jmp	ret4
+1:	rts	pc
 
 / обрезка 1:1: строка без сдвига
 bcopy:	movb	(r1)+, (r4)+
@@ -553,6 +724,12 @@ g_tj0:	.word _gfx_j0
 g_tje:	.word _gfx_je
 g_trel:	.word _gfx_rel0
 g_step:	.word 5
+g_vbase: .word VRAM		/ цель вывода: экран (или ctemp во время сборки)
+g_vsh:	.word 6
+g_vstr:	.word 64
+g_vrow:	.word 0
+g_vcol:	.word 0
+pend_buf: .word 0		/ отложенное стирание: буфер фона (0 — нет)
 t_level: .word 0
 
 	.bss
@@ -576,3 +753,18 @@ g_mfirst:	.space 2
 g_mlast:	.space 2
 pbuf:	.space 84
 tbuf:	.space 66
+pend_pos: .space 2
+pend_size: .space 2
+rs_buf:	.space 2
+a_pos:	.space 2
+a_size:	.space 2
+a_src:	.space 2
+a_save:	.space 2
+a_mode:	.space 2
+a_stride: .space 2
+o_nb:	.space 2
+o_rows:	.space 2
+u_r:	.space 2
+u_c:	.space 2
+u_h:	.space 2
+u_w:	.space 2

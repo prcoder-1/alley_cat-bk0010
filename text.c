@@ -37,6 +37,7 @@ void text_at(uint8_t y, uint8_t col, const char *s, uint8_t color)
     static const uint8_t fill[4] = { 0x00, SWAPC(0x55), SWAPC(0xAA), 0xFF };   /* цвет как на PC */
     uint16_t nf = (uint8_t)~fill[color & 3];
     volatile uint8_t *p = (volatile uint8_t *)VRAM_ADDR(y) + (col << 1);
+    gfx_flush();
     for (; *s; ++s, p += 2)
     {
         uint16_t c = (uint8_t)*s;
@@ -52,6 +53,7 @@ void text_at(uint8_t y, uint8_t col, const char *s, uint8_t color)
 void game_pause(void)
 {
     snd_off();
+    gfx_flush();
     uint16_t t = ticks();
     volatile uint16_t *src = (volatile uint16_t *)VRAM_ADDR(88);
     volatile uint16_t *bak = (volatile uint16_t *)VRAM_ADDR(200);

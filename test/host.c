@@ -109,6 +109,7 @@ uint16_t tmr_elapsed(void)
 uint8_t retrace(void) { return host_retrace; }
 uint8_t retrace_seen(uint16_t *last) { (void)last; return host_retrace; }
 void tone_sq(uint16_t hp, uint16_t counts) { (void)hp; (void)counts; }
+void gfx_flush(void) {}
 uint16_t umulhi(uint16_t a, uint16_t b) { return (uint16_t)(((uint32_t)a * b) >> 16); }
 void wait_tick(void) { ++host_ticks; }
 uint16_t to_tick(void) { return 1; }

@@ -2,7 +2,7 @@
 OUTPUT_FORMAT("a.out-pdp11")
 SECTIONS
 {
-    . = 0145000;
+    . = 0144000;
     .text : { *(.text) }
     .data : { *(.data) }
     .bss : { *(.bss) *(COMMON) . = ALIGN(2); }
