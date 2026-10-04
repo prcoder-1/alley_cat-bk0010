@@ -93,8 +93,8 @@ static void rope_scroll(uint8_t r, const uint8_t *col)
     /* сдвиг (4t - 5k) после шага: m+1 -> 0,4,3,2,1 */
     static const uint8_t ofs_t[5] = { 0, 4, 3, 2, 1 };
     uint8_t o = ofs_t[rope_m[r]];
-    gfx_flush();
     volatile uint8_t *row = (volatile uint8_t *)(VRAM_ADDR(rp_row[r]));
+    gfx_scroll16(row, r == 1);
     for (uint8_t y = 0; y < 16; ++y, row += 64)
     {
         uint16_t w;
@@ -102,7 +102,6 @@ static void rope_scroll(uint8_t r, const uint8_t *col)
         if (r != 1)
         {
             /* вправо: байт 0 = пиксели S[-5k..], окно [столбец t, t-1] */
-            for (uint8_t i = 63; i; --i) row[i] = row[i - 1];
             w = (uint16_t)(h[0][y] | (h[1][y] << 8));
             v = (uint8_t)(w >> (o << 1));
             if (o == 4) v = h[1][y];
@@ -111,7 +110,6 @@ static void rope_scroll(uint8_t r, const uint8_t *col)
         else
         {
             /* влево: байт 63, окно [t-2, t-1, t], смещение 7 - o */
-            for (uint8_t i = 0; i < 63; ++i) row[i] = row[i + 1];
             uint8_t off = (uint8_t)(7 - o);
             if (off >= 4)
                 w = (uint16_t)(h[1][y] | (h[0][y] << 8)), off -= 4;

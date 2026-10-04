@@ -96,8 +96,12 @@ static uint16_t page_on;  /* включена страница сцены (в н
 void ovl_load(uint8_t id)
 {
     if (page_on) gfx_flush();
-    page_on = 1;
     gfx_regions_reset();
     smk_page(id);
+    if (!page_on)
+    {
+        page_on = 1;
+        gfx_init();
+    }
     ((void (*)(void))OVL_ADDR)();
 }

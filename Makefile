@@ -36,7 +36,7 @@ HI.out: $(HI_OBJ) hi.ld
 
 kernel.out: $(KERNEL_OBJ) kernel.ld HI.out
 	$(LD) -T kernel.ld -R HI.out -Map kernel.map -o $@ $(KERNEL_OBJ)
-	@python3 mkbin.py --check $@ 0o1000 0o36000
+	@python3 mkbin.py --check $@ 0o1000 0o36400
 
 $(OUT):
 	mkdir -p $(OUT)

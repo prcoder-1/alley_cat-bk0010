@@ -8,22 +8,26 @@
 / pos  = строка<<8 | столбец CGA (0..79)
 / size = строк<<8 | ширина в байтах CGA (1..40)
 /
-/ Против мерцания: gfx_restore откладывается, и если следующий gfx_blit рисует
-/ тот же объект (тот же буфер фона), стирание и вывод собираются в буфере
-/ ctemp (ОЗУ СМК) и выходят на экран одним копированием. Любой другой вывод
-/ и gfx_flush сначала выполняют отложенное стирание.
+/ Вывод строки — один проход: байт источника читается один раз, байт БК
+/ собирается в регистре, снятие фона и операция идут сразу в видеопамять.
+/ Команды операции вписываются в цикл (слоты S0..S3, SC) при смене режима.
+/
+/ Против мерцания: gfx_restore откладывается; следующий вывод восстанавливает
+/ старые строки вперемежку со своими — строку y прямо перед рисованием строки y.
+/ Если объект поднимается (буфер фона тот же), строки идут снизу вверх, чтобы
+/ снятие нового фона не затёрло ещё не восстановленный старый.
 
 	.globl _gfx_blit, _gfx_restore, _gfx_save, _gfx_span, _gfx_fillu, _text_glyph, _gfx_flush
-	.globl _tone_sq, _umulhi
+	.globl _gfx_scroll16, _tone_sq, _umulhi
 	.globl _gfx_j0, _gfx_je, _gfx_rel0, _gfx_ntint, _gfx_mode
-	.globl _gfx_j0c, _gfx_jec, _gfx_rel0c
+	.globl _gfx_j0c, _gfx_jec, _gfx_rel0c, _gfx_init
 
 	VRAM = 040000
 	ROW0 = 28			/ 200 строк картинки по центру окна 256
-
-	CT_W = 16			/ ctemp: 16 байт x 48 строк в ОЗУ БК за ядром
-	CT_H = 48
-	ctemp = 036000
+	/ общие для всех страниц, в ОЗУ БК за ядром
+	kmask = 036600			/ KEY: маска непрозрачных пикселей, индекс — байт со знаком
+	scrbuf = 037000			/ промежуточный буфер фона
+	SCR_N = 160
 
 	.text
 
@@ -70,13 +74,14 @@ geom:
 	clrb	r0
 	swab	r0			/ строка
 	add	$ROW0, r0
-	sub	g_vrow, r0		/ куда выводим: экран или ctemp
-	mov	g_vsh, r2
-1:	asl	r0
-	sob	r2, 1b
-	add	g_vbase, r0
+	asl	r0
+	asl	r0
+	asl	r0
+	asl	r0
+	asl	r0
+	asl	r0
+	add	$VRAM, r0
 	add	r4, r0
-	sub	g_vcol, r0
 	mov	r0, g_addr
 	rts	pc
 
@@ -114,6 +119,36 @@ masks:
 1:
 	rts	pc
 
+/ void gfx_init(void): таблица kmask (один раз, страница с HI включена)
+_gfx_init:
+	mov	r2, -(sp)
+	clr	r0
+1:	mov	r0, r1
+	asr	r1
+	bis	r0, r1
+	bic	$0177652, r1		/ & 0x55: ненулевые пиксели
+	mov	r1, r2
+	asl	r2
+	bis	r2, r1
+	movb	r0, r2
+	movb	r1, kmask(r2)
+	inc	r0
+	cmp	r0, $256
+	bne	1b
+	mov	(sp)+, r2
+	rts	pc
+
+/ r0 = r1 * r2 (r2 <= 255)
+mul:	clr	r0
+1:	tst	r2
+	beq	9f
+	asr	r2
+	bcc	2f
+	add	r1, r0
+2:	asl	r1
+	br	1b
+9:	rts	pc
+
 / uint16_t gfx_span(pos, size): байт БК в строке
 _gfx_span:
 	mov	r2, -(sp)
@@ -148,7 +183,7 @@ _gfx_save:
 	mov	r3, r1
 2:	movb	(r1)+, (r4)+
 	sob	r2, 2b
-	add	g_vstr, r3
+	add	$64, r3
 	sob	r5, 1b
 	jmp	ret4
 
@@ -174,41 +209,116 @@ _gfx_flush:
 	jmp	ret4
 
 flush:
-	mov	pend_buf, rs_buf
+	tst	pend_buf
 	beq	9f
-	clr	pend_buf
-	mov	pend_pos, r0
-	mov	pend_size, r1
-	jsr	pc, rst
+	jsr	pc, oldset
+	jsr	pc, rsall
 9:	rts	pc
 
-/ вернуть фон: r0 = pos, r1 = size, rs_buf — буфер; в крайних байтах — только
-/ пиксели внутри прямоугольника CGA (соседние принадлежат другим объектам)
-rst:
+/ отложенное стирание -> o_* (сверху вниз); снимает pend_buf; o_left = 0, если не видно
+oldset:
+	mov	pend_buf, o_buf
+	clr	pend_buf
+	clr	o_left
+	mov	$077777, o_key
+	mov	pend_pos, r0
+	mov	pend_size, r1
 	jsr	pc, geom
 	tst	g_nb
-	bgt	1f
-	rts	pc
-1:	jsr	pc, masks
-	mov	rs_buf, r4
-	mov	g_addr, r3
-	mov	g_rows, g_left
-1:	mov	r3, r1
-	mov	g_nb, r2
-	mov	g_mfirst, r0
-	jsr	pc, mbyte
+	ble	9f
+	jsr	pc, masks
+	mov	g_addr, o_vram
+	mov	g_nb, o_nb
+	mov	g_nb, o_db
+	mov	g_rows, o_left
+	mov	$64, o_dv
+	mov	g_mfirst, o_mf
+	mov	g_mfirst, o_nmf
+	com	o_nmf
+	mov	g_mlast, o_ml
+	mov	g_mlast, o_nml
+	com	o_nml
+	clr	r0
+	bisb	pend_pos+1, r0
+	mov	r0, o_key
+9:	rts	pc
+
+rsall:	tst	o_left
+	beq	9f
+	jsr	pc, rs1
+	br	rsall
+9:	rts	pc
+
+/ вернуть одну строку старого фона; в крайних байтах — только пиксели внутри
+/ прямоугольника CGA (соседние принадлежат другим объектам). r3, r4 не трогает
+rs1:	mov	o_buf, r0
+	mov	o_vram, r1
+	mov	o_nb, r2
+	movb	(r0)+, r5
+	bic	o_nmf, r5
+	bicb	o_mf, (r1)
+	bisb	r5, (r1)+
 	dec	r2
 	beq	3f
 	dec	r2
 	beq	2f
-4:	movb	(r4)+, (r1)+
-	sob	r2, 4b
-2:	mov	g_mlast, r0
-	jsr	pc, mbyte
-3:	add	g_vstr, r3
-	dec	g_left
-	bne	1b
-	rts	pc
+1:	movb	(r0)+, (r1)+
+	sob	r2, 1b
+2:	movb	(r0)+, r5
+	bic	o_nml, r5
+	bicb	o_ml, (r1)
+	bisb	r5, (r1)+
+3:	add	o_db, o_buf
+	add	o_dv, o_vram
+	inc	o_key
+	dec	o_left
+	bne	4f
+	mov	$077777, o_key		/ строк больше нет
+4:	rts	pc
+
+/ void gfx_scroll16(uint8_t *row, uint16_t left): 16 строк по 64 байта сдвинуть
+/ на байт вправо (row[i] = row[i-1]) или влево (row[i] = row[i+1]); край не трогается
+_gfx_scroll16:
+	mov	r2, -(sp)
+	mov	r3, -(sp)
+	mov	r4, -(sp)
+	mov	r5, -(sp)
+	jsr	pc, flush
+	mov	012(sp), r3
+	mov	$16, r4
+	tst	014(sp)
+	bne	5f
+	add	$64, r3
+1:	mov	r3, r0
+	mov	r3, r1
+	dec	r1
+	mov	$9, r2
+2:	movb	-(r1), -(r0)
+	movb	-(r1), -(r0)
+	movb	-(r1), -(r0)
+	movb	-(r1), -(r0)
+	movb	-(r1), -(r0)
+	movb	-(r1), -(r0)
+	movb	-(r1), -(r0)
+	sob	r2, 2b
+	add	$64, r3
+	sob	r4, 1b
+	jmp	ret4
+5:	mov	r3, r0
+	mov	r3, r1
+	inc	r1
+	mov	$9, r2
+2:	movb	(r1)+, (r0)+
+	movb	(r1)+, (r0)+
+	movb	(r1)+, (r0)+
+	movb	(r1)+, (r0)+
+	movb	(r1)+, (r0)+
+	movb	(r1)+, (r0)+
+	movb	(r1)+, (r0)+
+	sob	r2, 2b
+	add	$64, r3
+	sob	r4, 5b
+	jmp	ret4
 
 / void gfx_fillu(pos, size, uint8_t pattern): заливка однотонным байтом (все 4 пикселя
 / одного цвета, т.е. образец не зависит от сдвига) — словами
@@ -255,7 +365,7 @@ _gfx_fillu:
 	movb	r5, (r1)+
 4:	mov	g_mlast, r0
 	jsr	pc, fmbyte
-5:	add	g_vstr, r3
+5:	add	$64, r3
 	dec	g_left
 	bne	1b
 	jmp	ret4
@@ -369,6 +479,7 @@ ret4:
 	mov	(sp)+, r2
 	rts	pc
 
+
 / void gfx_blit(pos, size, const uint8_t *src, uint8_t *save, uint16_t mode, uint16_t stride)
 /   mode: 0 копия (пиксели за краями спрайта не трогаются), 1 AND,
 /         2 цвет 0 прозрачен, 3 OR, 4 AND с подкраской чёрного (_gfx_ntint)
@@ -385,335 +496,321 @@ _gfx_blit:
 	mov	020(sp), a_save
 	mov	022(sp), a_mode
 	mov	024(sp), a_stride
-	tst	pend_buf
+	mov	a_pos, r0
+	mov	a_size, r1
+	jsr	pc, geom
+	tst	g_nb
+	bgt	1f
+	jsr	pc, flush
+	jmp	ret4
+1:	jsr	pc, masks
+	jsr	pc, patch
+	mov	g_addr, n_vr
+	mov	g_nb, n_nb
+	mov	g_rows, n_rows
+	/ края: исправлять, если маска неполная
+	mov	g_mfirst, r0
+	mov	r0, n_mf
+	mov	r0, n_nmf
+	com	n_nmf
+	clr	n_fixf
+	cmp	r0, $0377
 	beq	1f
-	cmp	a_save, pend_buf
-	beq	comp
-	jsr	pc, flush
-1:	jsr	pc, blt
-	jmp	ret4
-
-/ стирание + вывод одного объекта через ctemp
-comp:
-	mov	pend_pos, r0
-	mov	pend_size, r1
-	jsr	pc, geom
-	tst	g_nb
-	bgt	1f
-	clr	pend_buf		/ старого на экране нет
-	jsr	pc, blt
-	jmp	ret4
-1:	mov	g_addr, r5		/ старый: адрес, байт, строк
-	mov	g_nb, o_nb
-	mov	g_rows, o_rows
-	mov	a_pos, r0
-	mov	a_size, r1
-	jsr	pc, geom
-	tst	g_nb
-	bgt	1f
-	jsr	pc, flush
-	jmp	ret4
-	/ строки и столбцы экрана: смещение >> 6 и & 077
-1:	sub	$VRAM, r5
-	mov	r5, r0
-	bic	$0177700, r0		/ co
-	asl	r5
-	asl	r5
-	swab	r5
-	bic	$0177400, r5		/ ro
-	mov	g_addr, r3
-	sub	$VRAM, r3
-	mov	r3, r1
-	bic	$0177700, r1		/ cn
-	asl	r3
-	asl	r3
-	swab	r3
-	bic	$0177400, r3		/ rn
-	/ rA = min(ro, rn), rB = max(ro + o_rows, rn + n_rows)
-	mov	r5, r2
-	cmp	r3, r2
-	bhis	1f
-	mov	r3, r2
-1:	mov	r2, u_r
-	add	o_rows, r5
-	add	g_rows, r3
-	cmp	r3, r5
-	blos	1f
-	mov	r3, r5
-1:	sub	r2, r5			/ высота
-	mov	r5, u_h
-	/ cA = min(co, cn), cB = max(co + o_nb, cn + n_nb)
-	mov	r0, r2
-	cmp	r1, r2
-	bhis	1f
-	mov	r1, r2
-1:	mov	r2, u_c
-	add	o_nb, r0
-	add	g_nb, r1
-	cmp	r1, r0
-	blos	1f
-	mov	r1, r0
-1:	sub	r2, r0			/ ширина
-	mov	r0, u_w
-	cmp	r0, $CT_W
-	bhi	2f
-	cmp	r5, $CT_H
-	blos	3f
-2:	jsr	pc, flush		/ не помещается в ctemp — по-старому
-	jsr	pc, blt
-	jmp	ret4
-	/ экран -> ctemp
-3:	jsr	pc, uaddr
-	mov	$ctemp, r4
-	mov	u_h, r5
-1:	mov	r3, r1
-	mov	r4, r0
-	mov	u_w, r2
-2:	movb	(r1)+, (r0)+
-	sob	r2, 2b
-	add	$64, r3
-	add	$CT_W, r4
-	sob	r5, 1b
-	/ стереть и нарисовать в ctemp
-	mov	$ctemp, g_vbase
-	mov	$4, g_vsh
-	mov	$CT_W, g_vstr
-	mov	u_r, g_vrow
-	mov	u_c, g_vcol
-	jsr	pc, flush
-	jsr	pc, blt
-	mov	$VRAM, g_vbase
-	mov	$6, g_vsh
-	mov	$64, g_vstr
-	clr	g_vrow
-	clr	g_vcol
-	/ ctemp -> экран
-	jsr	pc, uaddr
-	mov	$ctemp, r4
-	mov	u_h, r5
-1:	mov	r3, r1
-	mov	r4, r0
-	mov	u_w, r2
-2:	movb	(r0)+, (r1)+
-	sob	r2, 2b
-	add	$64, r3
-	add	$CT_W, r4
-	sob	r5, 1b
-	jmp	ret4
-
-/ r3 = адрес экрана для (u_r, u_c)
-uaddr:
-	mov	u_r, r3
-	asl	r3
-	asl	r3
-	asl	r3
-	asl	r3
-	asl	r3
-	asl	r3
-	add	$VRAM, r3
-	add	u_c, r3
-	rts	pc
-
-/ вывод спрайта по a_pos..a_stride в текущую цель (экран или ctemp)
-blt:
-	mov	a_pos, r0
-	mov	a_size, r1
-	jsr	pc, geom
-	tst	g_nb
-	bgt	1f
-	rts	pc
-1:	mov	a_src, g_src
-	mov	a_save, g_save
-	mov	a_mode, r0
-	asl	r0
-	mov	ops(r0), g_op
-	mov	a_stride, r1
+	inc	n_fixf
+1:	mov	g_mlast, r0
+	mov	r0, n_ml
+	mov	r0, n_nml
+	com	n_nml
+	clr	n_fixl
+	cmp	r0, $0377
+	beq	1f
+	cmp	g_nb, $1
+	beq	1f
+	inc	n_fixl
+1:	mov	a_stride, r1
 	bne	1f
 	mov	g_w, r1
 1:	cmp	r1, $1			/ 1 = повторять одну строку
 	bne	1f
 	clr	r1
-1:	mov	r1, g_stride
-	clr	g_fill
-	cmp	r0, $2			/ AND: заполнитель = все единицы
-	beq	2f
-	cmp	r0, $8			/ AND с подкраской — тоже
-	bne	1f
-2:	mov	$-1, g_fill
-1:
-	/ начало в буфере строки: pbuf[0] — заполнитель (k = -1)
-	mov	g_rel0, r0		/ kptr = pbuf+1 + rel0>>2, вход = rel0 & 3
+1:	mov	r1, s_step
+	/ начало строки источника: k0 = rel0>>2; вход по фазе rel0&3 (с 2 и 3 —
+	/ байт k0 уже в регистре переноса, читать с k0+1)
+	mov	g_rel0, r0
 	mov	r0, r1
 	asr	r1
 	asr	r1
-	add	$pbuf+1, r1
-	mov	r1, g_kptr
-	bic	$0177774, r0
-	asl	r0
-	mov	blk(r0), g_entry
-	cmp	g_step, $4		/ обрезка: сдвигов нет, строка копируется как есть
+	add	a_src, r1
+	cmp	g_step, $4
 	bne	1f
-	mov	$bcopy, g_entry
-1:
-	jsr	pc, masks
-	mov	g_addr, r3
-	mov	g_rows, g_left
-	clr	g_conv
-
-row:
-	tst	g_conv			/ повтор одной строки: tbuf уже готов
+	mov	$PC_, r2		/ обрезка 1:1: без сдвигов
+	br	2f
+1:	bic	$0177774, r0
+	asl	r0
+	mov	ents(r0), r2
+	cmp	r0, $4
+	blt	2f
+	inc	r1
+2:	mov	r1, s_row
+	mov	r2, entry
+	mov	a_save, sv
+	clr	sv_adj
+	mov	$64, vr_step
+	clr	r0
+	bisb	a_pos+1, r0
+	mov	r0, key			/ номер строки по ходу вывода
+	clr	scr_on
+	/ отложенное стирание
+	clr	o_left
+	mov	$077777, o_key
+	tst	pend_buf
+	bne	1f
+	jmp	go
+1:	jsr	pc, oldset
+	tst	o_left
 	beq	1f
-	jmp	cvdone
-1:
-	/ строка источника -> pbuf[1..W]
-	mov	g_src, r0
-	mov	$pbuf, r1
-	movb	g_fill, (r1)+
-	mov	g_w, r2
-1:	movb	(r0)+, (r1)+
-	sob	r2, 1b
-	movb	g_fill, (r1)+
-	movb	g_fill, (r1)+
-	mov	g_src, r0
-	add	g_stride, r0
-	mov	r0, g_src
-	/ преобразование -> tbuf
-	mov	g_kptr, r1
-	mov	$tbuf, r4
-	mov	g_nb, r5
-	jmp	@g_entry
+	tst	a_save
+	bne	2f
+1:	jmp	go
+2:
+	/ пересекаются ли буферы фона: старый [pb, pe), новый [s, se)
+	mov	o_nb, r1
+	mov	o_left, r2
+	jsr	pc, mul
+	add	o_buf, r0
+	mov	r0, t_pe
+	mov	n_nb, r1
+	mov	n_rows, r2
+	jsr	pc, mul
+	mov	r0, t_sz
+	add	a_save, r0
+	cmp	r0, o_buf
+	blos	go
+	cmp	a_save, t_pe
+	bhis	go
+	cmp	a_save, o_buf
+	bne	scr
+	/ тот же буфер: вниз и не шире — сверху вниз; вверх и не уже — снизу вверх
+	cmp	key, o_key
+	blt	1f
+	cmp	n_nb, o_nb
+	blos	go
+	cmp	key, o_key
+	beq	desc
+	br	scr
+1:	cmp	n_nb, o_nb
+	bhis	desc
+scr:	cmp	t_sz, $SCR_N
+	bhi	1f
+	mov	$scrbuf, sv
+	inc	scr_on
+	br	go
+1:	jsr	pc, rsall		/ не помещается: стереть заранее
+	br	go
 
-b0:	movb	(r1)+, (r4)+
-	dec	r5
-	bne	b1
-	br	cvdone
-b1:	movb	(r1)+, r0
-	bic	$0177400, r0
-	movb	(r1), r2
+desc:	mov	n_rows, r2		/ новый — с последней строки
+	dec	r2
+	mov	r2, -(sp)
+	mov	s_step, r1
+	jsr	pc, mul
+	add	r0, s_row
+	neg	s_step
+	mov	(sp), r2
+	mov	n_nb, r1
+	jsr	pc, mul
+	add	r0, sv
+	mov	(sp)+, r2
+	add	r2, key
+	neg	key
+	jsr	pc, x64
+	add	r0, n_vr
+	mov	$-64, vr_step
+	mov	n_nb, r0
+	asl	r0
+	neg	r0
+	mov	r0, sv_adj
+	mov	o_left, r2		/ старый — тоже
+	dec	r2
+	mov	r2, -(sp)
+	mov	o_nb, r1
+	jsr	pc, mul
+	add	r0, o_buf
+	mov	(sp)+, r2
+	add	r2, o_key
+	neg	o_key
+	jsr	pc, x64
+	add	r0, o_vram
+	mov	$-64, o_dv
+	mov	o_nb, o_db
+	neg	o_db
+
+go:
+row:	mov	key, r3		/ старые строки до текущей включительно
+	cmp	r3, o_key
+	blt	2f
+1:	jsr	pc, rs1
+	cmp	r3, o_key
+	bge	1b
+2:	mov	n_vr, r3
+	tst	n_fixf
+	beq	1f
+	movb	(r3), e0
+1:	tst	n_fixl
+	beq	1f
+	mov	r3, r0
+	add	n_nb, r0
+	movb	-1(r0), e1
+1:	mov	s_row, r1
+	mov	sv, r4
+	mov	n_nb, r5
+	jmp	@entry
+
+/ Строка: r1 — источник, r3 — экран, r4 — фон, r5 — байт БК, r0 — байт,
+/ r2 — перенос (байт источника, нужный следующей фазе)
+ents:	.word P0, P1, E2, E3
+E2:	movb	-1(r1), r2
 	swab	r2
 	clrb	r2
-	bis	r2, r0
-	asr	r0
-	asr	r0
-	movb	r0, (r4)+
-	dec	r5
-	bne	b2
-	br	cvdone
-b2:	movb	(r1)+, r0
-	bic	$0177400, r0
-	movb	(r1), r2
+	br	P2
+E3:	movb	-1(r1), r2
 	swab	r2
 	clrb	r2
-	bis	r2, r0
-	asr	r0
-	asr	r0
-	asr	r0
-	asr	r0
-	movb	r0, (r4)+
+	br	P3
+P0:	movb	(r1)+, r0		/ B0
+S0:	.word 0, 0, 0, 0, 0, 0
 	dec	r5
-	bne	b3
-	br	cvdone
-b3:	movb	(r1)+, r0
-	bic	$0177400, r0
+	beq	exit
+P1:	clr	r0			/ B1 | B2<<8 >> 2
+	bisb	(r1)+, r0
 	movb	(r1)+, r2
 	swab	r2
 	clrb	r2
 	bis	r2, r0
+	asr	r0
+	asr	r0
+S1:	.word 0, 0, 0, 0, 0, 0
+	dec	r5
+	beq	exit
+P2:	swab	r2			/ B2 | B3<<8 >> 4
+	movb	(r1)+, r0
+	swab	r0
+	clrb	r0
+	bis	r0, r2
+	mov	r2, r0
+	asr	r0
+	asr	r0
+	asr	r0
+	asr	r0
+S2:	.word 0, 0, 0, 0, 0, 0
+	dec	r5
+	beq	exit
+P3:	clrb	r2			/ B3 | B4<<8 >> 6
+	swab	r2
+	movb	(r1)+, r0
+	swab	r0
+	clrb	r0
+	bis	r2, r0
 	asl	r0
 	asl	r0
 	swab	r0
-	movb	r0, (r4)+
-	sob	r5, b0
-cvdone:
-	tst	g_stride
-	bne	1f
-	inc	g_conv
-1:
-	/ снять фон
-	mov	g_save, r4
+S3:	.word 0, 0, 0, 0, 0, 0
+	dec	r5
+	bne	P0
+	br	exit
+PC_:	movb	(r1)+, r0
+SC:	.word 0, 0, 0, 0, 0, 0
+	dec	r5
+	bne	PC_
+
+exit:	mov	r4, sv
+	add	sv_adj, sv
+	mov	n_vr, r3		/ края: пиксели вне прямоугольника — прежние
+	tst	n_fixf
 	beq	1f
-	mov	r3, r1
-	mov	g_nb, r2
-2:	movb	(r1)+, (r4)+
-	sob	r2, 2b
-	mov	r4, g_save
-1:	mov	$tbuf, r4
-	mov	r3, r1
-	mov	g_nb, r2
-	jmp	@g_op
-
-/ копия: VRAM = (VRAM & ~m) | (v & m), m = 377 внутри
-opcopy:
-	mov	g_mfirst, r0
-	jsr	pc, mbyte
-	dec	r2
-	beq	9f
-	dec	r2
-	beq	3f
-2:	movb	(r4)+, (r1)+
-	sob	r2, 2b
-3:	mov	g_mlast, r0
-	jsr	pc, mbyte
-	br	9f
-
-mbyte:	movb	(r4)+, r5
-	mov	r0, -(sp)
-	com	r0
-	bic	r0, r5			/ v & m
-	movb	(r1), r0
-	bic	(sp)+, r0		/ VRAM & ~m
-	bis	r5, r0
-	movb	r0, (r1)+
-	rts	pc
-
-opand:
-1:	movb	(r4)+, r0
-	com	r0
-	bicb	r0, (r1)+
-	sob	r2, 1b
-	br	9f
-
-opkey:
-1:	movb	(r4)+, r0
-	mov	r0, r5
-	asr	r5
-	bis	r0, r5
-	bic	$0177652, r5		/ & 0x55: ненулевые пиксели
-	mov	r5, -(sp)
-	asl	r5
-	bis	(sp)+, r5
-	bicb	r5, (r1)
-	bisb	r0, (r1)+
-	sob	r2, 1b
-	br	9f
-
-opor:
-1:	bisb	(r4)+, (r1)+
-	sob	r2, 1b
-	br	9f
-
-/ AND с подкраской: чёрные пиксели спрайта рисуются цветом _gfx_tint
-optint:
-1:	movb	(r4)+, r0
-	com	r0			/ ~s: пиксели спрайта
-	bicb	r0, (r1)		/ фон & s
-	bic	_gfx_ntint, r0		/ ~s & T
-	bisb	r0, (r1)+
-	sob	r2, 1b
-
-9:	add	g_vstr, r3
-	dec	g_left
+	movb	e0, r0
+	bic	n_mf, r0
+	bicb	n_nmf, (r3)
+	bisb	r0, (r3)
+1:	tst	n_fixl
+	beq	1f
+	add	n_nb, r3
+	movb	e1, r0
+	bic	n_ml, r0
+	bicb	n_nml, -(r3)
+	bisb	r0, (r3)
+1:	add	vr_step, n_vr
+	add	s_step, s_row
+	inc	key
+	dec	n_rows
 	beq	1f
 	jmp	row
-1:	rts	pc
+1:	jsr	pc, rsall
+	tst	scr_on
+	beq	9f
+	mov	$scrbuf, r0
+	mov	a_save, r1
+	mov	t_sz, r2
+1:	movb	(r0)+, (r1)+
+	sob	r2, 1b
+9:	jmp	ret4
 
-/ обрезка 1:1: строка без сдвига
-bcopy:	movb	(r1)+, (r4)+
-	sob	r5, bcopy
-	jmp	cvdone
+/ r0 = r2 * 64
+x64:	mov	r2, r0
+	asl	r0
+	asl	r0
+	asl	r0
+	asl	r0
+	asl	r0
+	asl	r0
+	rts	pc
 
-ops:	.word opcopy, opand, opkey, opor, optint
-blk:	.word b0, b1, b2, b3
+/ вписать снятие фона и операцию в слоты (если режим сменился)
+patch:	mov	a_mode, r0
+	asl	r0
+	tst	a_save
+	beq	1f
+	inc	r0
+1:	cmp	r0, cur_key
+	bne	1f
+	rts	pc
+1:	mov	r0, cur_key
+	mov	$slots, r5
+2:	mov	(r5)+, r1
+	bne	3f
+	rts	pc
+3:	mov	r1, r2
+	add	$12, r2			/ конец слота
+	tst	a_save
+	beq	4f
+	mov	$0111324, (r1)+		/ movb (r3),(r4)+
+4:	mov	a_mode, r3
+	asl	r3
+	mov	optpl(r3), r3
+	mov	(r3)+, r4
+5:	mov	(r3)+, (r1)+
+	sob	r4, 5b
+	mov	r2, r4
+	sub	r1, r4
+	beq	2b
+	cmp	r4, $2
+	bne	6f
+	mov	$0240, (r1)		/ nop
+	br	2b
+6:	asr	r4			/ br на конец слота
+	dec	r4
+	bis	$0400, r4
+	mov	r4, (r1)
+	br	2b
+
+slots:	.word S0, S1, S2, S3, SC, 0
+optpl:	.word t_copy, t_and, t_key, t_or, t_tint
+/ операции над r0 в (r3)+: число слов, слова
+t_copy:	.word 1, 0110023			/ movb r0,(r3)+
+t_and:	.word 2, 0005100, 0140023		/ com r0; bicb r0,(r3)+
+t_key:	.word 4, 0110000, 0146013, kmask, 0150023	/ movb r0,r0; bicb kmask(r0),(r3); bisb r0,(r3)+
+t_or:	.word 1, 0150023			/ bisb r0,(r3)+
+t_tint:	.word 5, 0005100, 0140013, 0043700, _gfx_ntint, 0150023	/ com r0; bicb r0,(r3); bic @#ntint,r0; bisb r0,(r3)+
+
 / первый байт: внутри при rel0 = -1,-2,-3 старшие 3,2,1 пикселя
 lmask:	.byte 0374, 0360, 0300, 0
 / последний байт: внутри 1,2,3 младших пикселя
@@ -724,13 +821,9 @@ g_tj0:	.word _gfx_j0
 g_tje:	.word _gfx_je
 g_trel:	.word _gfx_rel0
 g_step:	.word 5
-g_vbase: .word VRAM		/ цель вывода: экран (или ctemp во время сборки)
-g_vsh:	.word 6
-g_vstr:	.word 64
-g_vrow:	.word 0
-g_vcol:	.word 0
 pend_buf: .word 0		/ отложенное стирание: буфер фона (0 — нет)
 t_level: .word 0
+cur_key: .word -1		/ режим, вписанный в слоты (своя копия в каждой странице)
 
 	.bss
 	.even
@@ -738,33 +831,48 @@ _gfx_ntint: .space 2		/ ~(образец цвета подкраски)
 g_addr:	.space 2
 g_nb:	.space 2
 g_rows:	.space 2
-g_left:	.space 2
 g_w:	.space 2
 g_rel0:	.space 2
-g_src:	.space 2
-g_save:	.space 2
-g_op:	.space 2
-g_stride:	.space 2
-g_fill:	.space 2
-g_conv:	.space 2
-g_kptr:	.space 2
-g_entry:	.space 2
-g_mfirst:	.space 2
-g_mlast:	.space 2
-pbuf:	.space 84
-tbuf:	.space 66
+g_left:	.space 2
+g_mfirst: .space 2
+g_mlast: .space 2
 pend_pos: .space 2
 pend_size: .space 2
-rs_buf:	.space 2
 a_pos:	.space 2
 a_size:	.space 2
 a_src:	.space 2
 a_save:	.space 2
 a_mode:	.space 2
 a_stride: .space 2
+o_buf:	.space 2
+o_vram:	.space 2
 o_nb:	.space 2
-o_rows:	.space 2
-u_r:	.space 2
-u_c:	.space 2
-u_h:	.space 2
-u_w:	.space 2
+o_db:	.space 2
+o_dv:	.space 2
+o_left:	.space 2
+o_key:	.space 2
+o_mf:	.space 2
+o_nmf:	.space 2
+o_ml:	.space 2
+o_nml:	.space 2
+n_vr:	.space 2
+n_nb:	.space 2
+n_rows:	.space 2
+n_mf:	.space 2
+n_nmf:	.space 2
+n_ml:	.space 2
+n_nml:	.space 2
+n_fixf:	.space 2
+n_fixl:	.space 2
+s_row:	.space 2
+s_step:	.space 2
+entry:	.space 2
+sv:	.space 2
+sv_adj:	.space 2
+vr_step: .space 2
+key:	.space 2
+scr_on:	.space 2
+t_pe:	.space 2
+t_sz:	.space 2
+e0:	.space 2
+e1:	.space 2

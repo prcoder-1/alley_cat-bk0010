@@ -110,6 +110,13 @@ uint8_t retrace(void) { return host_retrace; }
 uint8_t retrace_seen(uint16_t *last) { (void)last; return host_retrace; }
 void tone_sq(uint16_t hp, uint16_t counts) { (void)hp; (void)counts; }
 void gfx_flush(void) {}
+void gfx_init(void) {}
+void gfx_scroll16(volatile uint8_t *row, uint16_t left)
+{
+    for (int y = 0; y < 16; ++y, row += 64)
+        if (left) for (int i = 0; i < 63; ++i) row[i] = row[i + 1];
+        else for (int i = 63; i; --i) row[i] = row[i - 1];
+}
 uint16_t umulhi(uint16_t a, uint16_t b) { return (uint16_t)(((uint32_t)a * b) >> 16); }
 void wait_tick(void) { ++host_ticks; }
 uint16_t to_tick(void) { return 1; }

@@ -281,10 +281,18 @@ static void cat_idle(void)
     if (dog_hit()) return;
     uint16_t r = rand16() & 0x0E;
     cat_size = 0x0C02;
-    gfx_blit(cat_pos, SZ(6, 4), gptr(t_cat_idle_a[r >> 1]), cat_save, BM_AND, 0);
+    /* верх и низ — один вывод (фон под котом снимается вместе со стиранием) */
+    static uint8_t idle[48];
+    const uint8_t *a = gptr(t_cat_idle_a[r >> 1]);
     r = rand16() & 6;
-    gfx_blit(POS_ADD(cat_pos, 6, 0), SZ(6, 4), gptr(t_cat_idle_b[r >> 1]),
-             cat_save + 6 * gfx_span(cat_pos, SZ(6, 4)), BM_AND, 0);
+    const uint8_t *b = gptr(t_cat_idle_b[r >> 1]);
+    for (uint8_t i = 0; i < 24; ++i)
+    {
+        idle[i] = a[i];
+        idle[i + 24] = b[i];
+        asm ("" : "+r" (i));   /* иначе gcc соберёт вызов memcpy */
+    }
+    gfx_blit(cat_pos, SZ(12, 4), idle, cat_save, BM_AND, 0);
     cat_noerase = 0;
 }
 

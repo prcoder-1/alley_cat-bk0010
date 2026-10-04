@@ -1,5 +1,6 @@
 #include "hw.h"
 #include "memory.h"
+#include "gfx.h"
 
 #define REG(a) (*(volatile uint16_t *)(a))
 #define REGB(a) (*(volatile uint8_t *)(a))
@@ -16,56 +17,17 @@
 /* не даёт gcc свернуть вычитающий цикл в программное умножение/деление */
 #define OPAQUE(v) asm ("" : "+r" (v))
 
-static uint16_t tmr_prev;
-static uint16_t tick_acc;   /* в четвертях отсчёта */
-static uint16_t tick_cnt;
-static uint16_t pass_acc;
+/* счёт времени — в helpers.s (tmr_elapsed вызывается по много раз за проход) */
+extern uint16_t tmr_prev;
+extern uint16_t tick_acc;   /* в четвертях отсчёта */
+extern uint16_t tick_cnt;
+extern uint16_t pass_acc;
 
 /* кадры 1/60 с (обратный ход луча CGA): 390,625 отсчёта = 3125 восьмых */
 #define FRAME_8 3125u
 #define RETRACE_8 250u      /* обратный ход — 8% периода */
-static uint16_t rt_ph8;     /* фаза в кадре, восьмые отсчёта */
-static uint16_t rt_frame;   /* номер кадра */
-
-static void rt_add(uint16_t d8)
-{
-    uint16_t a = rt_ph8 + d8;
-    while (a >= FRAME_8)
-    {
-        a -= FRAME_8;
-        OPAQUE(a);
-        ++rt_frame;
-    }
-    rt_ph8 = a;
-}
-
-/* обновить счёт времени; вернуть прошедшие отсчёты таймера */
-uint16_t tmr_elapsed(void)
-{
-    uint16_t cur = REG(REG_TVE_COUNT);
-    uint16_t d = (uint16_t)(tmr_prev - cur);
-    tmr_prev = cur;
-    if (d > 15000) d = 15000;    /* после долгой паузы (загрузка) — не копить */
-    tick_acc += d << 2;
-    uint16_t a = tick_acc;
-    while (a >= TICK_Q)
-    {
-        a -= TICK_Q;
-        OPAQUE(a);
-        ++tick_cnt;
-    }
-    tick_acc = a;
-    pass_acc += d;
-    uint16_t r = d;
-    while (r >= 2048)
-    {
-        r -= 2048;
-        OPAQUE(r);
-        rt_add(16384);
-    }
-    rt_add((uint16_t)(r << 3));
-    return d;
-}
+extern uint16_t rt_ph8;     /* фаза в кадре, восьмые отсчёта */
+extern uint16_t rt_frame;   /* номер кадра */
 
 static void tmr_update(void)
 {
@@ -88,13 +50,19 @@ uint16_t ticks(void)
 uint16_t loop_passes(void)
 {
     tmr_update();
-    uint16_t n = 0, a = pass_acc;
-    while (a >= PASS_CNT)
+    gfx_flush();
+    /* pass_acc / PASS_CNT делением сдвигами (pass_acc < 15360) */
+    uint16_t n = 0, a = pass_acc, c = PASS_CNT << 9, b = 1 << 9;
+    do
     {
-        a -= PASS_CNT;
-        OPAQUE(a);
-        ++n;
-    }
+        if (a >= c)
+        {
+            a -= c;
+            n += b;
+        }
+        c >>= 1;
+        OPAQUE(c);
+    } while (b >>= 1);
     pass_acc = a;
     return n ? n : 1;
 }
@@ -169,11 +137,12 @@ void input_poll(void)
     uint8_t held = 0;
     if ((REG(REG_EXT_DEV) & 0100) == 0) held = 1;
     uint16_t *ks = (uint16_t *)key_state;   /* без memset: опрос — в каждом проходе */
-    for (uint8_t i = 0; i < (K_COUNT + 1) / 2; ++i)
+    uint16_t *ke = ks + (K_COUNT + 1) / 2;
+    do
     {
-        ks[i] = 0x8080;
-        OPAQUE(i);
-    }
+        *ks++ = 0x8080;
+        OPAQUE(ks);
+    } while (ks != ke);
     if (held)
     {
         uint8_t c = cur_code;

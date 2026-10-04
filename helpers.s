@@ -103,3 +103,61 @@ _smk_probe:
 7:	mov	r1, sp			/ платы нет: снять кадр прерывания
 	clr	r0
 	br	9b
+
+/ uint16_t tmr_elapsed(void): обновить счёт времени, вернуть прошедшие отсчёты
+/ таймера БК (3 МГц / 128). Тики BIOS PC — в четвертях отсчёта (5149 на тик),
+/ кадры CGA 1/60 с — в восьмых (3125 на кадр), проходы цикла PC — в отсчётах.
+	.globl _tmr_elapsed, _tmr_prev, _tick_acc, _tick_cnt, _pass_acc, _rt_ph8, _rt_frame
+_tmr_elapsed:
+	mov	@$0177710, r1
+	mov	_tmr_prev, r0
+	mov	r1, _tmr_prev
+	sub	r1, r0			/ d = prev - cur
+	cmp	r0, $15000		/ после долгой паузы (загрузка) — не копить
+	blos	1f
+	mov	$15000, r0
+1:	add	r0, _pass_acc
+	mov	r0, r1
+	asl	r1
+	asl	r1
+	add	_tick_acc, r1
+2:	cmp	r1, $5149
+	blo	3f
+	sub	$5149, r1
+	inc	_tick_cnt
+	br	2b
+3:	mov	r1, _tick_acc
+	mov	r0, r1
+	cmp	r1, $2048
+	bhis	6f
+4:	asl	r1
+	asl	r1
+	asl	r1
+	add	_rt_ph8, r1
+5:	cmp	r1, $3125
+	blo	7f
+	sub	$3125, r1
+	inc	_rt_frame
+	br	5b
+7:	mov	r1, _rt_ph8
+	rts	pc
+6:	sub	$2048, r1		/ по 2048 отсчётов, чтобы восьмые не переполнились
+	add	$16384, _rt_ph8
+8:	cmp	_rt_ph8, $3125
+	blo	9f
+	sub	$3125, _rt_ph8
+	inc	_rt_frame
+	br	8b
+9:	cmp	r1, $2048
+	bhis	6b
+	br	4b
+
+	.bss
+	.even
+_tmr_prev:	.space 2
+_tick_acc:	.space 2
+_tick_cnt:	.space 2
+_pass_acc:	.space 2
+_rt_ph8:	.space 2
+_rt_frame:	.space 2
+	.text
