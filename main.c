@@ -63,6 +63,8 @@ static void fill_ring(uint16_t x, uint8_t y, uint16_t w, uint8_t h,
  * 0x1C67: «шторка» — растущие прямоугольники от кота. Оригинал на каждом шаге
  * заново заливает весь прямоугольник; здесь заливается только прирост, а шаг
  * длится столько же, сколько на PC (~30 тактов 8088 на слово + 90 на строку).
+ * Счёт — от начала шторки по таймеру БК: своя заливка, звук и перебор
+ * прошлых ожиданий входят в это время, а не прибавляются к нему.
  */
 void wipe(uint8_t pattern)
 {
@@ -73,6 +75,7 @@ void wipe(uint8_t pattern)
     uint8_t edges = 0;       /* [1838] */
     uint16_t px = 0, pw = 0;
     uint8_t py = 0, ph = 0;
+    uint16_t t0 = *(volatile uint16_t *)REG_TVE_COUNT, target = 0;   /* счётчик вниз, 2,8 с на круг */
     for (;;)
     {
         snd_wipe();
@@ -85,7 +88,9 @@ void wipe(uint8_t pattern)
             pw = words << 3;
             ph = h;
         }
-        snd_wait((uint16_t)((((words * h) >> 2) * 19 >> 5) + ((h * 7) >> 4)));
+        target += (uint16_t)((((words * h) >> 2) * 19 >> 5) + ((h * 7) >> 4));
+        uint16_t spent = (uint16_t)(t0 - *(volatile uint16_t *)REG_TVE_COUNT);
+        if (target > spent) snd_wait((uint16_t)(target - spent));
         if (edges == 0x0F) return;
         w += 0x20;
         h += 0x10;

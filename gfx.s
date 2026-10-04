@@ -340,12 +340,23 @@ _gfx_fillu:
 	mov	r5, r0
 	swab	r0
 	bis	r0, r5
+	/ края: образец внутри маски (VRAM = VRAM & ~m | образец & m)
+	mov	g_mfirst, r1
+	com	r1
+	mov	r5, r0
+	bic	r1, r0
+	mov	r0, f_pf
+	mov	g_mlast, r1
+	com	r1
+	mov	r5, r0
+	bic	r1, r0
+	mov	r0, f_pl
 	mov	g_addr, r3
-	mov	g_rows, g_left
+	mov	g_rows, r0
 1:	mov	r3, r1
 	mov	g_nb, r2
-	mov	g_mfirst, r0
-	jsr	pc, fmbyte
+	bicb	g_mfirst, (r1)
+	bisb	f_pf, (r1)+
 	dec	r2
 	beq	5f
 	dec	r2
@@ -363,23 +374,11 @@ _gfx_fillu:
 3:	bit	$1, r2
 	beq	4f
 	movb	r5, (r1)+
-4:	mov	g_mlast, r0
-	jsr	pc, fmbyte
+4:	bicb	g_mlast, (r1)
+	bisb	f_pl, (r1)+
 5:	add	$64, r3
-	dec	g_left
-	bne	1b
+	sob	r0, 1b
 	jmp	ret4
-
-/ (r1)+ = (VRAM & ~r0) | (r5 & r0)
-fmbyte:	mov	r5, r4
-	mov	r0, -(sp)
-	com	r0
-	bic	r0, r4
-	movb	(r1), r0
-	bic	(sp)+, r0
-	bis	r4, r0
-	movb	r0, (r1)+
-	rts	pc
 
 / void text_glyph(uint8_t *dst, const uint8_t *glyph, uint16_t nfill):
 / знак шрифта ПЗУ 8x8 (младший бит — левый пиксель) в 2 байта x 8 строк,
@@ -833,9 +832,10 @@ g_nb:	.space 2
 g_rows:	.space 2
 g_w:	.space 2
 g_rel0:	.space 2
-g_left:	.space 2
 g_mfirst: .space 2
 g_mlast: .space 2
+f_pf:	.space 2
+f_pl:	.space 2
 pend_pos: .space 2
 pend_size: .space 2
 a_pos:	.space 2
