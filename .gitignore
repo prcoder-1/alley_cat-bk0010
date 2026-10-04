@@ -1,0 +1,9 @@
+*.o
+*.out
+*.map
+*.a
+*.so
+bin/
+aout2bin
+__pycache__/
+re/trace.pkl
