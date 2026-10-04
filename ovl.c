@@ -99,6 +99,19 @@ static void put_text(volatile uint8_t *p, const char *s)
     }
 }
 
+/* проценты загрузки под надписью: шаг done из total */
+static void progress(uint16_t done, uint16_t total)
+{
+    uint16_t pct = (uint16_t)(done * 100u / total);
+    char s[5];
+    s[0] = pct >= 100 ? '1' : ' ';
+    s[1] = pct >= 10 ? (char)('0' + pct / 10 % 10) : ' ';
+    s[2] = (char)('0' + pct % 10);
+    s[3] = '%';
+    s[4] = 0;
+    put_text(RP_VRAM + 40 * 64 + 28, s);
+}
+
 /* сообщение и стоп (в обычном режиме экрана, на месте буфера загрузки) */
 static void fail(const char *msg)
 {
@@ -152,8 +165,14 @@ void ovl_init(void)
     /* на время загрузки — режим РП: видна только надпись */
     for (volatile uint16_t *q = (volatile uint16_t *)RP_VRAM; q < (volatile uint16_t *)0100000; ++q) *q = 0;
     put_text(RP_VRAM + 28 * 64 + 12, "LOADING ALLEY CAT...");
+    /* шаги: чтение HI, его копии, затем чтение и копия каждой сцены */
+    uint16_t total = 2, done = 0;
+    for (uint8_t id = 0; id < sizeof names / sizeof names[0]; ++id)
+        if (names[id]) total += 2;
+    progress(done, total);
     SCROLL = SCROLL_RP;
     if (load("HI", LOAD_BUF)) fail("HI");
+    progress(++done, total);
     for (uint8_t id = 0; id < sizeof names / sizeof names[0]; ++id)
     {
         if (!names[id]) continue;
@@ -161,13 +180,16 @@ void ovl_init(void)
         copy(HI_ADDR, LOAD_BUF, HI_SIZE);
         smk_set(smk_home);
     }
+    progress(++done, total);
     for (uint8_t id = 0; id < sizeof names / sizeof names[0]; ++id)
     {
         if (!names[id]) continue;
         if (load(names[id], LOAD_BUF)) fail(names[id]);
+        progress(++done, total);
         smk_page(id);
         copy(OVL_ADDR, LOAD_BUF, OVL_SIZE);
         smk_set(smk_home);
+        progress(++done, total);
     }
     cold = 0;
     vram_clear();
