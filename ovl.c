@@ -20,8 +20,16 @@ struct ovl_ops ovl;
 #define HI_ADDR  ((uint8_t *)0144000)
 #define OVL_SIZE (0144000 - 0120000)
 #define HI_SIZE  (0160000 - 0144000)
-#define HI_BUF   ((uint8_t *)040000)              /* буферы — в видеопамяти */
-#define OVL_BUF  ((uint8_t *)(040000 + HI_SIZE))   /* до 0100000 ровно */
+/*
+ * Буфер загрузки — в видеопамяти, в той её части, которую в режиме РП
+ * (0177664 = 0230) не видно: видна только 070000..077777 с надписью.
+ * HI (до 014000) и сцена (до 024000) грузятся по очереди с 040000.
+ */
+#define LOAD_BUF ((uint8_t *)040000)
+#define RP_VRAM  ((volatile uint8_t *)070000)
+#define SCROLL   (*(volatile uint16_t *)0177664)
+#define SCROLL_FULL 01330
+#define SCROLL_RP   0230
 #define SMK_STD10 060
 #define PAGE0     2                               /* первая страница сцен */
 
@@ -68,20 +76,18 @@ static uint8_t load(const char *n, uint8_t *addr)
     return pb.RESPONSE;
 }
 
-/* сообщение и стоп; только средствами ядра: блиттер (HI) ещё не загружен */
+/* текст загрузчика — только средствами ядра: блиттер (HI) ещё не загружен */
 extern const uint8_t font[];   /* font.s */
 
-static void fail(const char *msg)
+static void put_text(volatile uint8_t *p, const char *s)
 {
     static const uint8_t spread[16] =
     {
         0, 03, 014, 017, 060, 063, 074, 077, 0300, 0303, 0314, 0317, 0360, 0363, 0374, 0377,
     };
-    vram_clear();   /* буфер загрузки в видеопамяти */
-    volatile uint8_t *p = (volatile uint8_t *)VRAM_ADDR(100) + 4;
-    for (; *msg; ++msg, p += 2)
+    for (; *s; ++s, p += 2)
     {
-        uint8_t c = (uint8_t)*msg;
+        uint8_t c = (uint8_t)*s;
         if (c < 040 || c > 0137) c = ' ';
         const uint8_t *g = font + ((uint16_t)(c - 040) << 3);
         volatile uint8_t *d = p;
@@ -91,6 +97,14 @@ static void fail(const char *msg)
             d[1] = spread[g[r] >> 4];
         }
     }
+}
+
+/* сообщение и стоп (в обычном режиме экрана, на месте буфера загрузки) */
+static void fail(const char *msg)
+{
+    SCROLL = SCROLL_FULL;
+    vram_clear();
+    put_text((volatile uint8_t *)VRAM_ADDR(100) + 4, msg);
     for (;;) ;
 }
 
@@ -135,18 +149,29 @@ void ovl_init(void)
         }
     }
     smk_set(smk_home);
-    if (load("HI", HI_BUF)) fail("HI");
+    /* на время загрузки — режим РП: видна только надпись */
+    for (volatile uint16_t *q = (volatile uint16_t *)RP_VRAM; q < (volatile uint16_t *)0100000; ++q) *q = 0;
+    put_text(RP_VRAM + 28 * 64 + 12, "LOADING ALLEY CAT...");
+    SCROLL = SCROLL_RP;
+    if (load("HI", LOAD_BUF)) fail("HI");
     for (uint8_t id = 0; id < sizeof names / sizeof names[0]; ++id)
     {
         if (!names[id]) continue;
-        if (load(names[id], OVL_BUF)) fail(names[id]);
         smk_page(id);
-        copy(HI_ADDR, HI_BUF, HI_SIZE);
-        copy(OVL_ADDR, OVL_BUF, OVL_SIZE);
+        copy(HI_ADDR, LOAD_BUF, HI_SIZE);
+        smk_set(smk_home);
+    }
+    for (uint8_t id = 0; id < sizeof names / sizeof names[0]; ++id)
+    {
+        if (!names[id]) continue;
+        if (load(names[id], LOAD_BUF)) fail(names[id]);
+        smk_page(id);
+        copy(OVL_ADDR, LOAD_BUF, OVL_SIZE);
         smk_set(smk_home);
     }
     cold = 0;
     vram_clear();
+    SCROLL = SCROLL_FULL;
 }
 
 void ovl_load(uint8_t id)
