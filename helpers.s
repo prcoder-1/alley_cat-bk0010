@@ -198,3 +198,20 @@ _pass_acc:	.space 2
 _rt_ph8:	.space 2
 _rt_frame:	.space 2
 	.text
+
+/ void tile8x2(uint8_t *dst, const uint8_t *src, uint16_t stride): плитка
+/ 8 строк x 2 байта (подряд в src) в буфер со строками по stride байт
+	.globl _tile8x2
+_tile8x2:
+	mov	r2, -(sp)
+	mov	4(sp), r0
+	mov	6(sp), r1
+	mov	010(sp), r2
+	dec	r2
+	.rept	8
+	movb	(r1)+, (r0)+
+	movb	(r1)+, (r0)
+	add	r2, r0
+	.endr
+	mov	(sp)+, r2
+	rts	pc

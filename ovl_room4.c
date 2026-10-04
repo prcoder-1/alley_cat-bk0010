@@ -255,21 +255,28 @@ static void cheese_list(uint16_t lst)
     draw_list((const uint16_t *)(d_cheese + (lst - CHEESE_GFX)), 0, d_cheese, CHEESE_GFX);
 }
 
-/* 0x3F9E: клин сыра из случайных плиток, дырки, связи дырок по уровню */
+/*
+ * 0x3F9E: клин сыра из случайных плиток, дырки, связи дырок по уровню.
+ * Плитки полосы (8 строк x 2 байта) идут вплотную: полоса собирается в буфер
+ * и выводится одним блитом — картинка та же, вызовов в n раз меньше.
+ */
 static void cheese_draw(void)
 {
+    static uint8_t band[8 * 2 * 0x19];
     cheese_jump = 0;
     cheese_hole = 0;
     uint16_t row = POS(0x506);
     for (uint8_t r = 0; r < 0x11; ++r, row += 8 << 8)
     {
-        for (uint8_t i = 0, n = t_cheese_row[r]; i < n; ++i)
+        uint8_t n = t_cheese_row[r], w = (uint8_t)(n << 1);
+        for (uint8_t i = 0; i < n; ++i)
         {
             uint16_t si = 0x3AEA;
             uint8_t dl = (uint8_t)rand16();
             if (dl <= 0x30) si = (dl & 4) ? 0x3AF8 : 0x3B02;
-            blit((uint16_t)(row + (i << 1)), SZ(8, 2), d_cheese + (si - CHEESE_GFX), BM_COPY);
+            tile8x2(band + (i << 1), d_cheese + (si - CHEESE_GFX), w);
         }
+        blit(row, SZ(8, w), band, BM_COPY);
     }
     cheese_list(0x3C22);
     cheese_list(0x3C3E);

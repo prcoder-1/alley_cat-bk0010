@@ -195,9 +195,14 @@ moved:
     spider_draw();
 }
 
-/* 0x3BDB: шкаф — случайные книги */
+/*
+ * 0x3BDB: шкаф — случайные книги. Плитки полки (8 строк x 2 байта) идут
+ * вплотную: полка собирается в буфер и выводится одним блитом — картинка та
+ * же, а вызовов в 16 раз меньше (на плитке 8x2 время уходит на обвязку).
+ */
 static void books_draw(void)
 {
+    static uint8_t shelf[8 * 32];
     uint16_t row = POS(0x66A);
     for (uint8_t cl = 0x10; cl; --cl, row += 8 << 8)
     {
@@ -205,7 +210,7 @@ static void books_draw(void)
         for (uint8_t bx = 0; ; )
         {
             uint8_t prev = al;
-            blit((uint16_t)(row + bx), SZ(8, 2), d_books + al, BM_COPY);
+            tile8x2(shelf + bx, d_books + al, 32);
             bx += 2;
             if (bx > 0x1E) break;
             if (bx == 0x1E)
@@ -220,6 +225,7 @@ static void books_draw(void)
             }
             al = (uint8_t)((((uint8_t)rand16() - bx) & 0x30) + 0x30);
         }
+        blit(row, SZ(8, 32), shelf, BM_COPY);
     }
 }
 

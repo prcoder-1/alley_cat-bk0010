@@ -133,3 +133,7 @@ uint16_t rand16(void)
     return rand_state;
 }
 void rand_seed(uint16_t s) { rand_state = s ? s : 0xFA59; }
+void tile8x2(uint8_t *dst, const uint8_t *src, uint16_t stride)
+{
+    for (int y = 0; y < 8; ++y, src += 2, dst += stride) { dst[0] = src[0]; dst[1] = src[1]; }
+}

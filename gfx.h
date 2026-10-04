@@ -16,7 +16,9 @@ void gfx_restore(uint16_t pos, uint16_t size, const uint8_t *buf);
 uint16_t gfx_span(uint16_t pos, uint16_t size);
 /* выполнить отложенное стирание gfx_restore (до прямой записи в экран, ожидания и смены сцены) */
 void gfx_flush(void);
-void gfx_init(void);   /* общие таблицы блиттера в ОЗУ БК: один раз при первой странице */
+void gfx_init(void);
+/* плитка 8 строк x 2 байта (подряд в src) в буфер со строками по stride байт (helpers.s) */
+void tile8x2(uint8_t *dst, const uint8_t *src, uint16_t stride);   /* общие таблицы блиттера в ОЗУ БК: один раз при первой странице */
 /* сдвинуть 16 строк экрана (по 64 байта) на байт вправо или влево (left) */
 void gfx_scroll16(volatile uint8_t *row, uint16_t left);
 
