@@ -9,7 +9,7 @@
 #define SWAPC(b) ((uint8_t)((((b) & 0x55) << 1) | (((b) & 0xAA) >> 1)))
 
 void gfx_fillu(uint16_t pos, uint16_t size, uint8_t pattern);
-void gfx_mode(uint16_t crop);   /* 0 — сжатие 4/5, 1 — обрезка 1:1 (точки CGA 36..291); действует в своей сцене */
+void gfx_mode(uint16_t crop);   /* 0 — сжатие 4/5, 1 — обрезка 1:1 (точки CGA 32..287); действует в своей сцене */
 void gfx_blit(uint16_t pos, uint16_t size, const uint8_t *src, uint8_t *save, uint16_t mode, uint16_t stride);
 void gfx_save(uint16_t pos, uint16_t size, uint8_t *buf);
 void gfx_restore(uint16_t pos, uint16_t size, const uint8_t *buf);

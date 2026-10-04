@@ -50,6 +50,17 @@ static void music(void)
     snd_tone(t_title_div[bl >> 1]);
 }
 
+/* 0x2739: семь цифр, после третьей — промежуток */
+static void digits_at(const uint8_t *d, uint16_t pos)
+{
+    for (uint8_t i = 0; i < 7; ++i)
+    {
+        blit(pos, SZ(8, 2), d_digits + (d[i] << 4), BM_COPY);
+        pos += 2;
+        if (i == 2) pos += 2;
+    }
+}
+
 /* 0x5DD4: кот бродит по забору */
 static uint16_t demo_t;       /* [6A88] */
 static uint16_t demo_rt;      /* кадр последней проверки обратного хода */
@@ -94,10 +105,11 @@ static void title_run(void)
     cat_init_alley();
     cat_y = 0x60;
     cat_ry = 0x92;
-    hiscore_draw();
-    score_draw();
+    /* рекорд, счёт и жизни — вместе со своими надписями (см. alley_draw_title) */
+    digits_at(g_hiscore, (120 << 8) | 16);    /* 0x26F2: на PC столбец 10 */
+    digits_at(g_score, (128 << 8) | 54);      /* 0x26FC: на PC столбец 60 */
     g_lives = 9;
-    blit(POS(0x1260), SZ(8, 2), d_digits + 9 * 16, BM_COPY);   /* 0x26B3 */
+    blit((116 << 8) | 58, SZ(8, 2), d_digits + 9 * 16, BM_COPY);   /* 0x26B3: на PC столбец 64 */
     dog_reset();
     in_dx = 0;
     in_dy = 0;
