@@ -166,6 +166,7 @@ static uint8_t alley(void)
 
 void main(void)
 {
+    ovl_warm();
     set_PSW(1 << PSW_I);
     ((union KEY_STATE *)REG_KEY_STATE)->bits.INT_MASK = 1;
     hw_init();

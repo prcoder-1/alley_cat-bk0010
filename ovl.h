@@ -18,6 +18,7 @@ struct ovl_ops
 };
 extern struct ovl_ops ovl;
 
+void ovl_warm(void);   /* до всего: после «СТОП» вернуть штатный режим СМК */
 void ovl_init(void);
 void ovl_load(uint8_t id);
 void smk_set(uint16_t code);
