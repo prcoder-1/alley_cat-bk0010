@@ -87,6 +87,8 @@ uint16_t key_presses;
  * Таблица: код БК -> индекс клавиши оригинала (+1), 0 — не используется.
  */
 static uint8_t cur_code;
+static uint8_t cur_ar2;     /* код набран с АР2 */
+uint16_t kbd_get(void);     /* helpers.s: код | 0200, если с АР2 */
 
 static uint8_t key_index(uint8_t c)
 {
@@ -112,6 +114,7 @@ static uint8_t key_index(uint8_t c)
     case 'S': return K_S + 1;
     case 'R': return K_R + 1;
     case 'M': return K_M + 1;
+    case '9': return K_9 + 1;
     }
     return 0;
 }
@@ -131,7 +134,9 @@ void input_poll(void)
 {
     if (REGB(REG_KEY_STATE) & 0200)
     {
-        cur_code = REGB(REG_KEY_DATA);
+        uint16_t k = kbd_get();
+        cur_code = (uint8_t)(k & 0177);
+        cur_ar2 = (uint8_t)(k & 0200);
         ++key_presses;
     }
     uint8_t held = 0;
@@ -152,6 +157,8 @@ void input_poll(void)
             key_state[K_CTRL] = 0;
             c = (c == 023) ? 'S' : (c == 022) ? 'R' : 'M';
         }
+        /* АР2 + 9 — Ctrl-9 оригинала (9 жизней) */
+        if (cur_ar2 && c == '9') key_state[K_CTRL] = 0;
         uint8_t k = key_index(c);
         if (k) key_state[k - 1] = 0;
     }
