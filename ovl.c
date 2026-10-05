@@ -99,17 +99,20 @@ static void put_text(volatile uint8_t *p, const char *s)
     }
 }
 
-/* проценты загрузки под надписью: шаг done из total */
-static void progress(uint16_t done, uint16_t total)
+/* под надписью: имя загружаемого файла и проценты (шаг done из total) */
+static void progress(uint16_t done, uint16_t total, const char *name)
 {
     uint16_t pct = (uint16_t)(done * 100u / total);
-    char s[5];
-    s[0] = pct >= 100 ? '1' : ' ';
-    s[1] = pct >= 10 ? (char)('0' + pct / 10 % 10) : ' ';
-    s[2] = (char)('0' + pct % 10);
-    s[3] = '%';
-    s[4] = 0;
-    put_text(RP_VRAM + 40 * 64 + 28, s);
+    char s[13];
+    uint8_t i = 0;
+    for (; *name; ++i) s[i] = *name++;
+    for (; i < 8; ++i) s[i] = ' ';
+    s[8] = pct >= 100 ? '1' : ' ';
+    s[9] = pct >= 10 ? (char)('0' + pct / 10 % 10) : ' ';
+    s[10] = (char)('0' + pct % 10);
+    s[11] = '%';
+    s[12] = 0;
+    put_text(RP_VRAM + 40 * 64 + 20, s);
 }
 
 /* сообщение и стоп (в обычном режиме экрана, на месте буфера загрузки) */
@@ -169,10 +172,10 @@ void ovl_init(void)
     uint16_t total = 2, done = 0;
     for (uint8_t id = 0; id < sizeof names / sizeof names[0]; ++id)
         if (names[id]) total += 2;
-    progress(done, total);
+    progress(done, total, "HI");
     SCROLL = SCROLL_RP;
     if (load("HI", LOAD_BUF)) fail("HI");
-    progress(++done, total);
+    progress(++done, total, "HI");
     for (uint8_t id = 0; id < sizeof names / sizeof names[0]; ++id)
     {
         if (!names[id]) continue;
@@ -180,16 +183,17 @@ void ovl_init(void)
         copy(HI_ADDR, LOAD_BUF, HI_SIZE);
         smk_set(smk_home);
     }
-    progress(++done, total);
+    progress(++done, total, "HI");
     for (uint8_t id = 0; id < sizeof names / sizeof names[0]; ++id)
     {
         if (!names[id]) continue;
+        progress(done, total, names[id]);
         if (load(names[id], LOAD_BUF)) fail(names[id]);
-        progress(++done, total);
+        progress(++done, total, names[id]);
         smk_page(id);
         copy(OVL_ADDR, LOAD_BUF, OVL_SIZE);
         smk_set(smk_home);
-        progress(++done, total);
+        progress(++done, total, names[id]);
     }
     cold = 0;
     vram_clear();
