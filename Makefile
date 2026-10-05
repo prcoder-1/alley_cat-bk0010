@@ -59,7 +59,7 @@ $(OUT)/$(1): $(1).out | $(OUT)
 endef
 
 
-$(eval $(call overlay,TITLE,ovl_title.o alley_bg.o alley_land.o wash.o data_title.o data_alleybg.o data_alley.o data_wash.o))
+$(eval $(call overlay,TITLE,ovl_title.o gfxcrop.o alley_bg.o alley_land.o wash.o data_title.o data_alleybg.o data_alley.o data_wash.o))
 $(eval $(call overlay,INTER,ovl_inter.o bonus.o data_inter.o data_bonus.o))
 $(eval $(call overlay,ALLEYBG,$(OVL_ALLEYBG)))
 $(eval $(call overlay,ALLEY,$(OVL_ALLEY)))

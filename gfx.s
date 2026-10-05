@@ -20,7 +20,7 @@
 	.globl _gfx_blit, _gfx_restore, _gfx_save, _gfx_span, _gfx_fillu, _text_glyph, _gfx_flush
 	.globl _gfx_scroll16, _tone_sq, _umulhi
 	.globl _gfx_j0, _gfx_je, _gfx_rel0, _gfx_ntint, _gfx_mode
-	.globl _gfx_j0c, _gfx_jec, _gfx_rel0c, _gfx_init
+	.globl _gfx_init
 
 	VRAM = 040000
 	ROW0 = 28			/ 200 строк картинки по центру окна 256
@@ -31,20 +31,23 @@
 
 	.text
 
-/ void gfx_mode(uint16_t crop): 0 — сжатие 4/5 (вся ширина CGA), иначе обрезка:
-/ видны байты CGA 8..71 (точки 32..287) в масштабе 1:1. Переменные режима — в .data,
+/ void gfx_mode(const uint8_t *crop): 0 — сжатие 4/5 (вся ширина CGA), иначе обрезка:
+/ видны байты CGA 8..71 (точки 32..287) в масштабе 1:1; crop — таблицы j0 (80 байт),
+/ je (128), rel0 (80) подряд (gfxcrop.s в сцене). Переменные режима — в .data,
 / т.е. своя копия в каждой странице СМК: режим действует только в своей сцене.
 _gfx_mode:
-	tst	2(sp)
+	mov	2(sp), r0
 	bne	1f
 	mov	$_gfx_j0, g_tj0
 	mov	$_gfx_je, g_tje
 	mov	$_gfx_rel0, g_trel
 	mov	$5, g_step
 	rts	pc
-1:	mov	$_gfx_j0c, g_tj0
-	mov	$_gfx_jec, g_tje
-	mov	$_gfx_rel0c, g_trel
+1:	mov	r0, g_tj0
+	add	$80, r0
+	mov	r0, g_tje
+	add	$128, r0
+	mov	r0, g_trel
 	mov	$4, g_step
 	rts	pc
 
@@ -552,6 +555,23 @@ _gfx_blit:
 	inc	r1
 2:	mov	r1, s_row
 	mov	r2, entry
+	/ байт источника на строку (до oldset — он затирает g_*): nb + число фаз P1
+	/ (берут 2 байта) среди nb фаз с p = rel0&3: [(p+nb-2)>>2] + (p<2); при 1:1 — nb
+	mov	g_nb, r2
+	cmp	g_step, $4
+	beq	2f
+	mov	g_rel0, r0
+	bic	$0177774, r0
+	mov	r0, r1
+	add	r2, r1
+	sub	$2, r1
+	asr	r1
+	asr	r1
+	add	r1, r2
+	cmp	r0, $2
+	bge	2f
+	inc	r2
+2:	mov	r2, x_s+2		/ в go станет s_step - съедено
 	mov	a_save, sv
 	clr	sv_adj
 	mov	$64, vr_step
@@ -643,26 +663,71 @@ desc:	mov	n_rows, r2		/ новый — с последней строки
 	mov	o_nb, o_db
 	neg	o_db
 
-go:
-row:	mov	key, r3		/ старые строки до текущей включительно
-	cmp	r3, o_key
-	blt	2f
-1:	jsr	pc, rs1
-	cmp	r3, o_key
-	bge	1b
-2:	mov	n_vr, r3
+/ Строки: r1 (источник), r3 (экран) и r4 (фон) идут от строки к строке без
+/ переменных — шаги, маски краёв, ширина и вход по фазе вписываются в операнды
+/ команд цикла (самомодификация, как слоты); ненужные блоки обходятся br.
+go:	mov	n_nb, r5
+	mov	r5, r_n+2
+	mov	r5, r0
+	dec	r0
+	mov	r0, r_l1+2		/ последний байт строки: nb-1(r3)
+	mov	r5, r0
+	neg	r0
+	mov	r0, x_f2+4		/ после строки первый байт: -nb(r3)
+	mov	r0, x_f3+2
+	mov	n_mf, x_f1+2
+	mov	n_nmf, x_f2+2
+	mov	n_ml, x_l1+2
+	mov	n_nml, x_l2+2
+	mov	vr_step, r0
+	sub	r5, r0
+	mov	r0, x_n+2
+	mov	sv_adj, x_v+2
+	mov	entry, r_j+2
+	mov	$NOP, r0
+	mov	r0, r1
 	tst	n_fixf
-	beq	1f
-	movb	(r3), e0
-1:	tst	n_fixl
-	beq	1f
-	mov	r3, r0
-	add	n_nb, r0
-	movb	-1(r0), e1
-1:	mov	s_row, r1
+	bne	1f
+	mov	$BR_F, r0
+	mov	$BR_XF, r1
+1:	mov	r0, r_f
+	mov	r1, x_f
+	mov	$NOP, r0
+	mov	r0, r1
+	tst	n_fixl
+	bne	1f
+	mov	$BR_L, r0
+	mov	$BR_XL, r1
+1:	mov	r0, r_l
+	mov	r1, x_l
+	mov	$NOP, r0
+	tst	o_left
+	bne	1f
+	mov	$BR_CK, r0
+1:	mov	r0, r_ck
+	mov	s_step, r0
+	sub	x_s+2, r0
+	mov	r0, x_s+2
+	mov	s_row, r1
+	mov	n_vr, r3
 	mov	sv, r4
-	mov	n_nb, r5
-	jmp	@entry
+row:
+r_ck:	nop				/ br r_e: старого фона нет
+	cmp	key, o_key		/ старые строки до текущей включительно
+	blt	r_e
+	mov	r1, -(sp)
+1:	jsr	pc, rs1
+	cmp	key, o_key
+	bge	1b
+	mov	(sp)+, r1
+r_e:
+r_f:	nop				/ br r_l: первый байт целиком внутри
+	movb	(r3), e0
+r_l:	nop				/ br r_n
+r_l1:	movb	0(r3), e1
+r_n:	mov	$0, r5
+r_j:	jmp	@$0
+
 
 / Строка: r1 — источник, r3 — экран, r4 — фон, r5 — байт БК, r0 — байт,
 / r2 — перенос (байт источника, нужный следующей фазе)
@@ -721,24 +786,20 @@ SC:	.word 0, 0, 0, 0, 0, 0
 	dec	r5
 	bne	PC_
 
-exit:	mov	r4, sv
-	add	sv_adj, sv
-	mov	n_vr, r3		/ края: пиксели вне прямоугольника — прежние
-	tst	n_fixf
-	beq	1f
+exit:
+x_f:	nop				/ br x_l; края: пиксели вне прямоугольника — прежние
 	movb	e0, r0
-	bic	n_mf, r0
-	bicb	n_nmf, (r3)
-	bisb	r0, (r3)
-1:	tst	n_fixl
-	beq	1f
-	add	n_nb, r3
+x_f1:	bic	$0, r0
+x_f2:	bicb	$0, 0(r3)
+x_f3:	bisb	r0, 0(r3)
+x_l:	nop				/ br x_n
 	movb	e1, r0
-	bic	n_ml, r0
-	bicb	n_nml, -(r3)
-	bisb	r0, (r3)
-1:	add	vr_step, n_vr
-	add	s_step, s_row
+x_l1:	bic	$0, r0
+x_l2:	bicb	$0, -1(r3)
+	bisb	r0, -1(r3)
+x_n:	add	$0, r3
+x_s:	add	$0, r1
+x_v:	add	$0, r4
 	inc	key
 	dec	n_rows
 	beq	1f
@@ -752,6 +813,14 @@ exit:	mov	r4, sv
 1:	movb	(r0)+, (r1)+
 	sob	r2, 1b
 9:	jmp	ret4
+
+/ заглушки обхода блоков строки
+	NOP = 0240
+	BR_CK = 0400 + [[r_e - r_ck - 2] >> 1]
+	BR_F = 0400 + [[r_l - r_f - 2] >> 1]
+	BR_L = 0400 + [[r_n - r_l - 2] >> 1]
+	BR_XF = 0400 + [[x_l - x_f - 2] >> 1]
+	BR_XL = 0400 + [[x_n - x_l - 2] >> 1]
 
 / r0 = r2 * 64
 x64:	mov	r2, r0

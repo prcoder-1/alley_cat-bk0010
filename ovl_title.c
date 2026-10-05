@@ -88,7 +88,7 @@ static void demo_cat(void)
 
 static void title_run(void)
 {
-    gfx_mode(1);         /* заставка без сжатия: всё нужное лежит в точках 56..272 */
+    gfx_mode(gfx_crop);         /* заставка без сжатия: всё нужное лежит в точках 56..272 */
     g_state = 0;
     item_y = 0;          /* 0x1830: окна; остальное состояние двора — в его оверлее */
     g_item_thrown = 0;
