@@ -16,7 +16,7 @@ static uint16_t bn_raw;        /* [3697] */
 static uint8_t bn_anim;        /* [369F] */
 static uint8_t bn_row;         /* [369E] строка текста */
 static uint8_t bn_save1[SAVE_SIZE(8, 11)];
-static uint8_t bn_save2[SAVE_SIZE(8, 51)];
+uint8_t bn_save2[BN_SAVE2_SIZE];
 
 /* 0x3A96: голова кота в рабочий буфер с маской */
 static void head_mask(uint8_t m)

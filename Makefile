@@ -65,7 +65,7 @@ $(eval $(call overlay,ALLEYBG,$(OVL_ALLEYBG)))
 $(eval $(call overlay,ALLEY,$(OVL_ALLEY)))
 $(foreach r,1 3 4 5 6,$(eval $(call overlay,ROOM$(r),ovl_room$(r).o room.o data_room.o data_room$(r).o)))
 $(eval $(call overlay,ROOM2,ovl_room2.o data_room2.o))
-$(eval $(call overlay,ROOM7,ovl_room7.o bonus.o data_room7.o data_bonus.o))
+$(eval $(call overlay,ROOM7,ovl_room7.o fwin.o bonus.o data_room7.o data_bonus.o))
 
 # дискета ANDOS с игрой: чистый ANDOS.IMG + ядро (с автостартом), HI и сцены
 GAME_FILES=$(OUT)/CAT.BIN $(OUT)/HI $(addprefix $(OUT)/,$(OVERLAYS))

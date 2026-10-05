@@ -94,6 +94,36 @@ void gfx_blit(uint16_t pos, uint16_t size, const uint8_t *src, uint8_t *save, ui
     }
 }
 
+/* fwin.s: спрайт в байты БК (вне спрайта нули) и вывод с прозрачным цветом 0 */
+void fw_conv(uint8_t *dst, const uint8_t *src, uint16_t size, int16_t rel0, uint16_t nb)
+{
+    int W = size & 0xFF, rows = size >> 8;
+    for (int y = 0; y < rows; ++y, src += W)
+    {
+        uint8_t p[90] = { 0 };
+        memcpy(p + 1, src, W);
+        for (int j = 0; j < nb; ++j)
+        {
+            int rel = rel0 + 5 * j;
+            int k = (rel >= 0 ? rel / 4 : -1);
+            *dst++ = (uint8_t)((p[k + 1] | (p[k + 2] << 8)) >> (2 * (rel - 4 * k)));
+        }
+    }
+}
+
+void fw_key(uint16_t pos, const uint8_t *buf, uint16_t size)
+{
+    int a = (((pos >> 8) + ROW0) << 6) + gfx_j0_t[pos & 0xFF], nb = size & 0xFF;
+    for (int y = 0; y < (size >> 8); ++y, a += 64)
+        for (int j = 0; j < nb; ++j)
+        {
+            uint8_t v = *buf++, k = (uint8_t)((v | (v >> 1)) & 0x55);
+            k |= (uint8_t)(k << 1);
+            uint8_t *d = &vram[(a + j) & 16383];
+            *d = (uint8_t)((*d & ~k) | v);
+        }
+}
+
 /* время и ввод — задаёт тест */
 uint16_t host_ticks;
 uint8_t host_retrace = 1;

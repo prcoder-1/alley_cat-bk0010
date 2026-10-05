@@ -593,12 +593,78 @@ static void fwin_approach(void)
     }
 }
 
+/*
+ * gfx_blit пересчитывает сжатие 4/5 на каждом выводе, и 8 сердечек за кадр
+ * съедали почти всё время мелодии. Здесь спрайт переводится в байты БК
+ * (fwin.s) один раз на фазу сжатия (rel0 столбца, их 5) в кэш в bn_save2
+ * и выводится коротким циклом с ключом. Сжатие 4/5: ROOM7 не в режиме обрезки.
+ */
+void fw_conv(uint8_t *dst, const uint8_t *src, uint16_t size, int16_t rel0, uint16_t nb);
+void fw_key(uint16_t pos, const uint8_t *buf, uint16_t size);
+extern const int8_t gfx_rel0[];
+
+#define FW_CELLS 5
+static uint8_t *fw_cell[FW_CELLS];
+static int8_t fw_tag[FW_CELLS];     /* rel0 в ячейке, 4 — пусто */
+static uint8_t fw_nb[FW_CELLS];     /* байт БК в строке */
+static uint8_t fw_age[FW_CELLS], fw_now, fw_n;
+
+static void fw_cache_init(uint16_t size)
+{
+    gfx_flush();   /* bn_save2 мог ещё ждать стирания строки бонуса */
+    uint16_t nb = 0;
+    for (uint8_t c = 0; c < 5; ++c)
+    {
+        uint16_t n = gfx_span(c, size);
+        if (n > nb) nb = n;
+    }
+    nb *= size >> 8;
+    uint8_t *p = bn_save2;
+    fw_n = 0;
+    fw_now = 0;
+    while (fw_n < FW_CELLS && p + nb <= bn_save2 + BN_SAVE2_SIZE)
+    {
+        fw_cell[fw_n] = p;
+        fw_tag[fw_n] = 4;
+        fw_age[fw_n] = 0;
+        p += nb;
+        ++fw_n;
+    }
+}
+
+/* аналог gfx_blit(pos, size, src, 0, BM_KEY, 0) */
+static void fw_draw(uint16_t pos, const uint8_t *src, uint16_t size)
+{
+    int8_t r = gfx_rel0[(uint8_t)pos];
+    uint8_t i = 0;
+    while (i < fw_n && fw_tag[i] != r) ++i;
+    if (i == fw_n)
+    {
+        i = 0;
+        for (uint8_t j = 1; j < fw_n; ++j)
+            if (fw_age[j] < fw_age[i]) i = j;
+        uint16_t nb = gfx_span(pos, size);
+        fw_tag[i] = r;
+        fw_nb[i] = (uint8_t)nb;
+        fw_conv(fw_cell[i], src, size, r, nb);
+    }
+    fw_age[i] = ++fw_now;
+    fw_key(pos, fw_cell[i], (size & 0xFF00) | fw_nb[i]);
+}
+
+/*
+ * Порядок вывода в кадре: столбец x0 подряд (на PC 7..0). Сердечки кадра не
+ * перекрываются (шаг = размер спрайта), картинка та же, а при одной ячейке
+ * кэша (фаза 2) на кадр 3 перевода вместо 4.
+ */
+static const uint8_t fw_order[8] = { 7, 6, 5, 4, 0, 3, 2, 1 };
+
 /* 0x519B / 0x522A: восемь сердечек разлетаются из одной точки */
 static void fwin_phase(uint8_t k)
 {
     const uint16_t *f = t_fwin;
     uint16_t spr = f[k], dx = f[9 + k], dy = f[12 + k], xmax = f[15 + k], ymax = f[18 + k];
-    uint16_t size = f[21 + k], delay = f[24 + k];
+    uint16_t size = SZW(f[21 + k]), delay = f[24 + k];
     const uint8_t *src = d_fwin + (spr - 0x4A82);
     uint16_t x[8], y[8];
     for (int8_t i = 7; i >= 0; --i)
@@ -607,15 +673,17 @@ static void fwin_phase(uint8_t k)
         x[i] = f[3 + k];
         y[i] = f[6 + k];
     }
+    fw_cache_init(size);
     uint8_t first = 1, done = 0;
     do
     {
         uint16_t t = ticks();
-        for (int8_t i = 7; i >= 0; --i)
+        for (uint8_t n = 0; n < 8; ++n)
         {
+            uint8_t i = fw_order[n];
             snd_tune();
             if (!first || i == 7)
-                gfx_blit(POS_XY(x[i], y[i]), SZW(size), src, 0, BM_KEY, 0);
+                fw_draw(POS_XY(x[i], y[i]), src, size);
             uint16_t d = t_fwin_dir[i];
             if (d)
             {
