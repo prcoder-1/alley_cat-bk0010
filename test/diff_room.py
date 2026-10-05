@@ -206,8 +206,10 @@ def run(room, seed, steps, level=3, verbose=True):
         for x in range(256):
             b = (vr[(y + 28) * 64 + x // 4] >> (2 * (x % 4))) & 3
             if b != PERM[pcs[y][x]]:
-                # известные отступления: сдвиг верёвок при сжатии 4/5; подкрашенный кот вместо палитры
+                # известные отступления: сдвиг верёвок при сжатии 4/5; щели забора, потерянные
+                # при сжатии (fence_gaps); подкрашенный кот вместо палитры
                 if room == 0 and any(r <= y < r + 16 for r in (8, 40, 72)) or \
+                   room == 0 and 112 <= y < 176 and x % 32 == 31 and b == 1 or \
                    tint and pcs[y][x] == 0 and cx <= x < cx + 24 and cy <= y < cy + 16:
                     known += 1
                     continue

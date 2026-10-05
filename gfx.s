@@ -20,7 +20,7 @@
 	.globl _gfx_blit, _gfx_restore, _gfx_save, _gfx_span, _gfx_fillu, _text_glyph, _gfx_flush
 	.globl _gfx_scroll16, _tone_sq, _umulhi
 	.globl _gfx_j0, _gfx_je, _gfx_rel0, _gfx_ntint, _gfx_mode
-	.globl _gfx_init
+	.globl _gfx_init, _gfx_fence, _gfx_fence_fix
 
 	VRAM = 040000
 	ROW0 = 28			/ 200 строк картинки по центру окна 256
@@ -418,6 +418,30 @@ _text_glyph:
 
 spread:	.byte 0, 03, 014, 017, 060, 063, 074, 077
 	.byte 0300, 0303, 0314, 0317, 0360, 0363, 0374, 0377
+
+/ void gfx_fence_fix(void): после цифр рекорда и счёта на заборе двора — щель доски,
+/ выпавшая при сжатии 4/5 (см. fence_gaps в alley_bg.c): точка БК 63 в строках 120..127
+/ и 223 в строках 128..135, где цвет доски (2 -> 1). Включает сцена двора (gfx_fence).
+_gfx_fence_fix:
+	tst	_gfx_fence
+	beq	9f
+	mov	r2, -(sp)
+	mov	$VRAM+[[120+ROW0]*64]+15, r0
+	jsr	pc, 1f
+	mov	$VRAM+[[128+ROW0]*64]+55, r0
+	jsr	pc, 1f
+	mov	(sp)+, r2
+9:	rts	pc
+1:	mov	$8, r2
+2:	movb	(r0), r1
+	bic	$0177477, r1
+	cmp	r1, $0200
+	bne	3f
+	bicb	$0200, (r0)
+	bisb	$0100, (r0)
+3:	add	$64, r0
+	sob	r2, 2b
+	rts	pc
 
 / void tone_sq(uint16_t hp, uint16_t counts): меандр, полупериод — hp витков sob
 / (исполняется из ОЗУ СМК, где нет тактов ожидания, поэтому высота стабильна);
@@ -892,6 +916,7 @@ g_step:	.word 5
 pend_buf: .word 0		/ отложенное стирание: буфер фона (0 — нет)
 t_level: .word 0
 cur_key: .word -1		/ режим, вписанный в слоты (своя копия в каждой странице)
+_gfx_fence: .word 0		/ 1 — сцена двора: gfx_fence_fix работает (своя копия в каждой странице)
 
 	.bss
 	.even

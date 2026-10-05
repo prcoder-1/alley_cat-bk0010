@@ -45,6 +45,20 @@ static void ropes_init(void)
     rope_delay = 1;
 }
 
+/*
+ * Сжатие 4/5 теряет щель каждой 5-й доски (точка CGA 40m+39 выпадает) —
+ * промежутки 6, 6, 7, 6 и сразу 13. Щель возвращается в точку БК 32m+31
+ * (промежутки 6/7) там, где цвет доски: в теле забора, кляксах и надписях,
+ * до баков (у них зелёные рёбра). Заставка — 1:1, там щели целы.
+ */
+static void fence_gaps(void)
+{
+    volatile uint8_t *p = (volatile uint8_t *)VRAM_ADDR(112) + 7;
+    for (uint8_t y = 0; y < 64; ++y, p += 64)
+        for (uint8_t m = 0; m < 64; m += 8)
+            if ((p[m] & 0xC0) == 0x80) p[m] ^= 0xC0;
+}
+
 /* 0x2B9E: забор */
 void fence_draw(void)
 {
@@ -124,6 +138,8 @@ static void alley_bg_common(void)
     fence_draw();
     draw_list(t_list_alley, 0, d_tiles, 0x2720);
     skill_draw();
+    gfx_flush();
+    fence_gaps();
 }
 
 /* 0x2A00: фон двора для игры */

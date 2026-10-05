@@ -26,6 +26,7 @@ void ovl_entry(void)
     hooks.floor_step = 0;
     gfx_region(5, 0x172D, 0x17C9, d_items);
     gfx_region(6, 0x1DD0, 0x1ED0, d_mice);
+    gfx_fence = 1;
 }
 
 static void alley_run(void)

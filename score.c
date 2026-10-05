@@ -41,6 +41,7 @@ static void digits_draw(const uint8_t *d, uint16_t pos)
         pos += 2;
         if (i == 2) pos += 2;
     }
+    gfx_fence_fix();
 }
 
 /* 0x26F2 / 0x26FC */

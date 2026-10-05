@@ -85,6 +85,7 @@ def run(seed, steps, level=1, inputs_seed=0):
         for x in range(256):
             b = vr[(y+28)*64 + x//4]; b = (b >> (2*(x%4))) & 3
             if b != [0, 2, 1, 3][pcs[y][x]]:
+                if 112 <= y < 176 and x % 32 == 31 and b == 1: continue   # щели забора (fence_gaps)
                 bad += 1
                 if bad <= 5: print('  пиксель', x, y, 'PC', pcs[y][x], 'порт', b)
     print('seed %04X: %d шагов совпали, отличий на экране: %d' % (seed, steps, bad))

@@ -124,6 +124,20 @@ void fw_key(uint16_t pos, const uint8_t *buf, uint16_t size)
         }
 }
 
+/* gfx.s: щели забора под цифрами счёта в сцене двора */
+uint16_t gfx_fence;
+void gfx_fence_fix(void)
+{
+    static const int at[2][2] = { { 120, 15 }, { 128, 55 } };
+    if (!gfx_fence) return;
+    for (int k = 0; k < 2; ++k)
+        for (int y = 0; y < 8; ++y)
+        {
+            uint8_t *d = &vram[((at[k][0] + y + ROW0) << 6) + at[k][1]];
+            if ((*d & 0xC0) == 0x80) *d ^= 0xC0;
+        }
+}
+
 /* время и ввод — задаёт тест */
 uint16_t host_ticks;
 uint8_t host_retrace = 1;
