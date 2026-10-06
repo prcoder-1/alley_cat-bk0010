@@ -29,7 +29,7 @@ DATA_H=data_kernel.h data_bonus.h data_inter.h data_title.h data_alley.h data_al
 # версия и дата сборки — на экране загрузки (ovl.c); version.h переписывается,
 # только если строка изменилась
 version.h: FORCE
-	@echo '#define VERSION_STR "VERSION $(VERSION) $(BUILD_DATE)"' > version.h.tmp
+	@echo '#define VERSION_STR "VERSION $(VERSION) ($(BUILD_DATE))"' > version.h.tmp
 	@cmp -s version.h.tmp version.h && rm version.h.tmp || mv version.h.tmp version.h
 ovl.o: version.h
 FORCE:

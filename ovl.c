@@ -167,7 +167,7 @@ void ovl_init(void)
     /* на время загрузки — режим РП: видна только надпись */
     for (volatile uint16_t *q = (volatile uint16_t *)RP_VRAM; q < (volatile uint16_t *)0100000; ++q) *q = 0;
     put_text(RP_VRAM + 28 * 64 + 14, "LOADING ALLEY CAT");
-    put_text(RP_VRAM + 40 * 64 + 10, VERSION_STR);
+    put_text(RP_VRAM + 40 * 64 + 8, VERSION_STR);
     /* шаги: чтение HI, его копии, затем чтение и копия каждой сцены */
     uint16_t total = 2, done = 0;
     for (uint8_t id = 0; id < sizeof names / sizeof names[0]; ++id)
