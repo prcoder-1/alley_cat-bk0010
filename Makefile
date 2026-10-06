@@ -84,6 +84,16 @@ $(OUT)/ALLEYCAT.IMG: ANDOS.IMG mkandos.py $(GAME_FILES) | $(OUT)
 
 andos: $(OUT)/ALLEYCAT.IMG
 
+# запуск на БК с Gryphon-MPI: дискета ANDOS -> SD-карта, привод F0, контроллер СМК-512;
+# дальше — файл CAT в файловом менеджере ANDOS
+GMPI_API_URL=http://10.0.0.55/api
+GMPI_UPLOAD_DIR=/BK_Uploads
+GMPI_IMG=$(OUT)/ALLEYCAT.IMG
+g-mpi: $(GMPI_IMG)
+	curl -i -o /dev/null -X POST -H "Content-Type: multipart/form-data" -F "storeas=$(GMPI_UPLOAD_DIR)/ALLEYCAT.IMG" -F "size=$$(stat -c%s $(GMPI_IMG))" -F "file=@$(GMPI_IMG)" "$(GMPI_API_URL)/upload"
+	curl -i -s -o /dev/null "$(GMPI_API_URL)/setdrv?drv=F0&path=$(GMPI_UPLOAD_DIR)/ALLEYCAT.IMG"
+	curl -i -s -o /dev/null "$(GMPI_API_URL)/run?dev=smk&emu10=no"
+
 sizes: all
 	@pdp11-aout-size kernel.out HI.out $(addsuffix .out,$(OVERLAYS))
 
@@ -93,5 +103,5 @@ asm-files:
 clean:
 	rm -f *.o *.out *.map version.h $(OUT)/*
 
-.PHONY: all clean asm-files sizes andos FORCE
+.PHONY: all clean asm-files sizes andos g-mpi FORCE
 .SECONDARY:

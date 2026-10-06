@@ -21,6 +21,7 @@
 make            # bin/: CAT.BIN, HI, файлы сцен и дискета ANDOS ALLEYCAT.IMG
 make andos      # только дискета ANDOS
 make sizes      # размеры ядра и сцен
+make g-mpi      # залить дискету на Gryphon-MPI (GMPI_API_URL) и запустить СМК-512
 ```
 
 Номер версии (`VERSION`) задаётся в `Makefile`, дата сборки берётся при сборке;
