@@ -1,4 +1,4 @@
-/ Шрифт 8x8 BIOS IBM PC, знаки 040..0137 по 8 байт, младший бит — левая точка (re/mkfont.py)
+/ Шрифт 8x8 BIOS IBM PC, знаки 040..0137 по 8 байт, младший бит — левая точка (re/mkfont.py pc)
 	.globl _font
 	.text
 _font:

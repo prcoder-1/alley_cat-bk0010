@@ -78,7 +78,7 @@ static uint8_t load(const char *n, uint8_t *addr)
 }
 
 /* текст загрузчика — только средствами ядра: блиттер (HI) ещё не загружен */
-extern const uint8_t font[];   /* font.s */
+extern const uint8_t font[];   /* font_pc.s или font_zx.s */
 
 static void put_text(volatile uint8_t *p, const char *s)
 {

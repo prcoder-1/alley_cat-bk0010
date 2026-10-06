@@ -1,5 +1,5 @@
 /*
- * Текст шрифтом 8x8 BIOS IBM PC (font.s из re/mkfont.py: знаки 040..0137 по 8 байт,
+ * Текст шрифтом font_$(FONT).s (re/mkfont.py; FONT в Makefile): знаки 040..0137 по 8 байт,
  * младший бит — левый пиксель). Знакоместо 8x8 пикселей БК, 32 в строке.
  * Пауза (0x5E70).
  */
@@ -13,7 +13,7 @@
 extern const uint8_t host_font[];
 #define FONT host_font
 #else
-extern const uint8_t font[];   /* font.s */
+extern const uint8_t font[];   /* font_pc.s или font_zx.s */
 #define FONT font
 #endif
 

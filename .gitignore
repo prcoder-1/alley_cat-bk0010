@@ -5,6 +5,7 @@
 *.so
 bin/
 version.h
+font.sel
 aout2bin
 __pycache__/
 re/trace.pkl

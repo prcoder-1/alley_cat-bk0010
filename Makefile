@@ -1,5 +1,7 @@
 # Порт Alley Cat (IBM PC, 1984) для БК-0010 + СМК-512: ядро + сцены в страницах ДОЗУ
 VERSION=1.0
+# шрифт текста: pc (8x8 BIOS IBM PC) или zx (ПЗУ ZX Spectrum 48K); make FONT=zx
+FONT=pc
 BUILD_DATE=$(shell date +%d.%m.%Y)
 XGCC=/home/prcoder/xgcc
 CFLAGS=-std=gnu23 -fomit-frame-pointer -msoft-float -nostartfiles -nodefaultlibs -nostdlib -m10 -Os -I$(XGCC)/include
@@ -9,7 +11,7 @@ AS=pdp11-aout-as
 LD=pdp11-aout-ld
 OUT=bin
 
-KERNEL_OBJ=crt0.o gfxc.o hw.o common.o helpers.o divmulmod.o memory.o font.o \
+KERNEL_OBJ=crt0.o gfxc.o hw.o common.o helpers.o divmulmod.o memory.o font_$(FONT).o \
 	cat.o dog.o snd.o score.o text.o ovl.o main.o inl.o
 OVL_ALLEYBG=ovl_alleybg.o alley_bg.o wash.o data_alleybg.o data_wash.o
 OVL_ALLEY=ovl_alley.o sndpoll.o rope.o alley.o alley_land.o wash.o data_alley.o data_wash.o
@@ -32,6 +34,10 @@ version.h: FORCE
 	@echo '#define VERSION_STR "VERSION $(VERSION) ($(BUILD_DATE))"' > version.h.tmp
 	@cmp -s version.h.tmp version.h && rm version.h.tmp || mv version.h.tmp version.h
 ovl.o: version.h
+# смена FONT пересобирает ядро
+font.sel: FORCE
+	@echo $(FONT) > font.sel.tmp
+	@cmp -s font.sel.tmp font.sel && rm font.sel.tmp || mv font.sel.tmp font.sel
 FORCE:
 
 data_%.c data_%.h: re/data_%.py re/mkdata.py
@@ -44,7 +50,7 @@ HI.out: $(HI_OBJ) hi.ld
 	$(LD) -T hi.ld -Map HI.map -o $@ $(HI_OBJ)
 	@python3 mkbin.py --check $@ 0o144000 0o160000
 
-kernel.out: $(KERNEL_OBJ) kernel.ld HI.out
+kernel.out: $(KERNEL_OBJ) kernel.ld HI.out font.sel
 	$(LD) -T kernel.ld -R HI.out -Map kernel.map -o $@ $(KERNEL_OBJ)
 	@python3 mkbin.py --check $@ 0o1000 0o37000
 
@@ -101,7 +107,7 @@ asm-files:
 	for f in *.c; do $(CC) $(CFLAGS) -S -fverbose-asm $$f; done
 
 clean:
-	rm -f *.o *.out *.map version.h $(OUT)/*
+	rm -f *.o *.out *.map version.h font.sel $(OUT)/*
 
 .PHONY: all clean asm-files sizes andos g-mpi FORCE
 .SECONDARY:
