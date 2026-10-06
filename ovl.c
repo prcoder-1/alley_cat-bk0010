@@ -13,6 +13,7 @@
 #include "game.h"
 #include "hw.h"
 #include "gfx.h"
+#include "version.h"
 
 struct ovl_ops ovl;
 
@@ -99,20 +100,18 @@ static void put_text(volatile uint8_t *p, const char *s)
     }
 }
 
-/* под надписью: имя загружаемого файла и проценты (шаг done из total) */
+/* под версией: имя загружаемого файла и проценты (шаг done из total) */
 static void progress(uint16_t done, uint16_t total, const char *name)
 {
     uint16_t pct = (uint16_t)(done * 100u / total);
-    char s[13];
-    uint8_t i = 0;
-    for (; *name; ++i) s[i] = *name++;
-    for (; i < 8; ++i) s[i] = ' ';
-    s[8] = pct >= 100 ? '1' : ' ';
-    s[9] = pct >= 10 ? (char)('0' + pct / 10 % 10) : ' ';
-    s[10] = (char)('0' + pct % 10);
-    s[11] = '%';
-    s[12] = 0;
-    put_text(RP_VRAM + 40 * 64 + 20, s);
+    char s[13], *p = s;
+    for (uint8_t i = 0; i < 8; ++i) *p++ = *name ? *name++ : ' ';
+    p = s + 11;
+    p[0] = '%';
+    p[1] = 0;
+    do *--p = (char)('0' + pct % 10); while (pct /= 10);
+    while (p != s + 8) *--p = ' ';
+    put_text(RP_VRAM + 52 * 64 + 20, s);
 }
 
 /* сообщение и стоп (в обычном режиме экрана, на месте буфера загрузки) */
@@ -167,7 +166,8 @@ void ovl_init(void)
     smk_set(smk_home);
     /* на время загрузки — режим РП: видна только надпись */
     for (volatile uint16_t *q = (volatile uint16_t *)RP_VRAM; q < (volatile uint16_t *)0100000; ++q) *q = 0;
-    put_text(RP_VRAM + 28 * 64 + 12, "LOADING ALLEY CAT...");
+    put_text(RP_VRAM + 28 * 64 + 14, "LOADING ALLEY CAT");
+    put_text(RP_VRAM + 40 * 64 + 10, VERSION_STR);
     /* шаги: чтение HI, его копии, затем чтение и копия каждой сцены */
     uint16_t total = 2, done = 0;
     for (uint8_t id = 0; id < sizeof names / sizeof names[0]; ++id)

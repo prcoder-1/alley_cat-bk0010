@@ -1,4 +1,6 @@
 # Порт Alley Cat (IBM PC, 1984) для БК-0010 + СМК-512: ядро + сцены в страницах ДОЗУ
+VERSION=1.0
+BUILD_DATE=$(shell date +%d.%m.%Y)
 XGCC=/home/prcoder/xgcc
 CFLAGS=-std=gnu23 -fomit-frame-pointer -msoft-float -nostartfiles -nodefaultlibs -nostdlib -m10 -Os -I$(XGCC)/include
 ASFLAGS=-mno-fpu -mlimited-eis
@@ -23,6 +25,14 @@ DATA_H=data_kernel.h data_bonus.h data_inter.h data_title.h data_alley.h data_al
 
 %.o: %.s
 	$(AS) $(ASFLAGS) -o $@ $<
+
+# версия и дата сборки — на экране загрузки (ovl.c); version.h переписывается,
+# только если строка изменилась
+version.h: FORCE
+	@echo '#define VERSION_STR "VERSION $(VERSION) $(BUILD_DATE)"' > version.h.tmp
+	@cmp -s version.h.tmp version.h && rm version.h.tmp || mv version.h.tmp version.h
+ovl.o: version.h
+FORCE:
 
 data_%.c data_%.h: re/data_%.py re/mkdata.py
 	cd re && python3 mkdata.py $*
@@ -81,7 +91,7 @@ asm-files:
 	for f in *.c; do $(CC) $(CFLAGS) -S -fverbose-asm $$f; done
 
 clean:
-	rm -f *.o *.out *.map $(OUT)/*
+	rm -f *.o *.out *.map version.h $(OUT)/*
 
-.PHONY: all clean asm-files sizes andos
+.PHONY: all clean asm-files sizes andos FORCE
 .SECONDARY:

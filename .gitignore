@@ -4,6 +4,7 @@
 *.a
 *.so
 bin/
+version.h
 aout2bin
 __pycache__/
 re/trace.pkl
