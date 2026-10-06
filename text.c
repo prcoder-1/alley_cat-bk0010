@@ -59,9 +59,15 @@ void game_pause(void)
     for (uint16_t i = 0; i < 16 * 32; ++i) bak[i] = src[i];
     for (uint16_t i = 0; i < 16 * 32; ++i) src[i] = 0;
     text_at(88, 11, "Paws Game:", 2);
-    text_at(96, 2, "Press any key to continue...", 2);
+    text_at(96, 0, "Press key or button to continue", 2);
     uint16_t k = key_presses;
-    while (k == key_presses) input_poll();
+    uint16_t b = 1;     /* кнопка, нажатая до паузы, не в счёт */
+    while (k == key_presses)
+    {
+        input_poll();
+        if (!joy_button()) b = 0;
+        else if (!b) break;
+    }
     for (uint16_t i = 0; i < 16 * 32; ++i) src[i] = bak[i];
     for (uint16_t i = 0; i < 16 * 32; ++i) bak[i] = 0;
     ticks_set(t);

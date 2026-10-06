@@ -86,4 +86,3 @@ uint16_t rope_cur;         /* [052F] */
 uint8_t rope_delay;        /* [0531] */
 uint8_t rope_m[3];         /* шаг прокрутки по модулю 5 (только БК) */
 uint8_t rope_hist[3][3][16];
-uint8_t g_joy;           /* [069B] выбран джойстик */

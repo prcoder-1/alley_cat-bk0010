@@ -2,7 +2,8 @@
  * Оверлей TITLE: заставка (CAT.EXE 0x5CB0, музыка 0x53B0, кот 0x5DD4,
  * мигание 0x5E3B) и меню (0x5EE5). Заставка выводится без сжатия, с обрезкой
  * краёв (центральные 256 точек из 320). Текст меню переписан под клавиатуру
- * БК и 32 знакоместа шрифта ПЗУ; проверки адаптера джойстика (0x5FE5) нет.
+ * БК и 32 знакоместа; вопроса «джойстик?» и проверки адаптера (0x5FE5) нет:
+ * клавиатура и джойстик работают вместе.
  */
 #include "alley.h"
 #include "cat.h"
@@ -17,7 +18,6 @@
 #include "data_title.h"
 
 extern uint8_t g_menu_done;   /* [041A] */
-extern uint8_t g_joy;         /* [069B] выбран джойстик */
 
 /* 0x5E3B */
 static uint16_t blink_i;      /* [6A8D] */
@@ -146,11 +146,8 @@ static void title_run(void)
             music();
             snd_idle_tick();
             input_poll();
-            if (g_joy)
-            {
-                if (joy_button()) btn = 1;
-                else if (btn) return;
-            }
+            if (joy_button()) btn = 1;
+            else if (btn) return;
             if (key_presses != presses) return;
         }
     }
@@ -158,76 +155,58 @@ static void title_run(void)
 
 /* ------------------------------------------------------------------ меню */
 
-struct line { uint8_t row; const char *s; };
+/* строки: номер строки экрана, столбец, текст, 0; в конце — 0 */
+static const char m_menu[] =
+    "\001\000Please select your skill level:\0"
+    "\003\003(K)itten\0"
+    "\004\003(H)ouse Cat\0"
+    "\005\003(T)omcat\0"
+    "\006\003(A)lley Cat\0"
+    "\010\000Move the cat:\0"
+    "\011\003ARROWS or JOYSTICK\0"
+    "\012\003J C U  up-left, up, up-right\0"
+    "\013\003F Y W  left, down, right\0"
+    "\015\000SPACE or joystick button\0"
+    "\016\000performs special actions.\0"
+    "\020\000During play:\0"
+    "\021\003CTRL-S  sound on/off\0"
+    "\022\003CTRL-R  restart the game\0"
+    "\023\003CTRL-M  back to this menu\0"
+    "\024\003P       paws mode\0";
+static const char m_start[] = "\026\000Press a key or button to start.\0";
 
-static const struct line m_joy[] = { { 0, "Use a joystick (Y/N)?" }, { 0, 0 } };
-static const struct line m_skill[] =
+static void print(const char *s)
 {
-    { 2, "Please select your skill level:" },
-    { 4, "   (K)itten" },
-    { 5, "   (H)ouse Cat" },
-    { 6, "   (T)omcat" },
-    { 7, "   (A)lley Cat" },
-    { 0, 0 }
-};
-static const struct line m_play[] =
-{
-    { 9, "During play:" },
-    { 10, "   CTRL-S  sound on/off" },
-    { 11, "   CTRL-R  restart the game" },
-    { 12, "   CTRL-M  back to this menu" },
-    { 13, "   P       paws mode" },
-    { 0, 0 }
-};
-static const struct line m_keys[] =
-{
-    { 15, "Arrows (and Q,E,Z,C for" },
-    { 16, "diagonals) control the cat." },
-    { 17, "SPACE performs special actions." },
-    { 20, "Press any key to start." },
-    { 0, 0 }
-};
-static const struct line m_joys[] =
-{
-    { 15, "Use the joystick to control" },
-    { 16, "the cat. The button performs" },
-    { 17, "special actions." },
-    { 19, "Center your joystick and press" },
-    { 20, "the button to start." },
-    { 0, 0 }
-};
-
-static void print(const struct line *l)
-{
-    for (; l->s; ++l) text_at((uint8_t)(l->row << 3), 0, l->s, 3);
+    while (*s)
+    {
+        uint8_t row = (uint8_t)*s++;
+        uint8_t col = (uint8_t)*s++;
+        text_at((uint8_t)(row << 3), col, s, 3);
+        while (*s++);
+    }
 }
 
-/* ждать нажатия, вернуть код клавиши */
+/* ждать клавишу (вернуть её код) или нажатия кнопки джойстика (0) */
 static uint8_t get_key(void)
 {
     input_poll();
     uint16_t p = key_presses;
-    do
+    uint16_t b = 1;     /* кнопка должна быть отпущена */
+    for (;;)
     {
         wait_tick();
         input_poll();
+        if (key_presses != p) return key_code();
+        if (!joy_button()) b = 0;
+        else if (!b) return 0;
     }
-    while (key_presses == p);
-    return key_code();
 }
 
 static void menu(void)
 {
     snd_off();
     gfx_fill_rows(0, 200, 0);
-    print(m_joy);
-    for (;;)
-    {
-        uint8_t k = get_key();
-        if (k == 'Y') { g_joy = 1; break; }
-        if (k == 'N') { g_joy = 0; break; }
-    }
-    print(m_skill);
+    print(m_menu);
     for (;;)
     {
         uint8_t k = get_key();
@@ -236,15 +215,9 @@ static void menu(void)
         if (k == 'T') { g_skill = 2; break; }
         if (k == 'A') { g_skill = 3; break; }
     }
-    print(m_play);
-    print(g_joy ? m_joys : m_keys);
+    print(m_start);
     /* 0x5F97 */
-    if (g_joy)
-    {
-        while (!joy_button()) wait_tick();
-    }
-    else
-        get_key();
+    get_key();
 }
 
 void ovl_entry(void)

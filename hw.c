@@ -81,10 +81,12 @@ uint16_t key_presses;
 /*
  * Клавиатура БК: код последней клавиши (0177662) и признак «клавиша нажата»
  * (бит 6 0177716, активный 0). Одновременно держать можно одну клавишу,
- * поэтому диагонали оригинала (Home/PgUp/End/PgDn) вынесены на отдельные
- * клавиши. Джойстик «Электроника» (0177714) даёт любые сочетания.
+ * поэтому кроме стрелок есть блок Й Ц У / Ф Ы В (J C U / F Y W): диагонали
+ * вверх (Home/PgUp оригинала) — Й и У; диагоналей вниз на клавиатуре нет.
+ * Джойстик «Электроника» (0177714) опрашивается всегда и даёт любые сочетания.
  *
  * Таблица: код БК -> индекс клавиши оригинала (+1), 0 — не используется.
+ * Буквы — по клавише: в РУС код кириллицы (КОИ-7) минус 040 = латиница.
  */
 static uint8_t cur_code;
 static uint8_t cur_ar2;     /* код набран с АР2 */
@@ -96,22 +98,14 @@ static uint8_t key_index(uint8_t c)
     switch (c)
     {
     case 040: return K_ALT + 1;        /* ПРОБЕЛ — действие (Alt) */
-    case 032: return K_UP + 1;         /* стрелки */
-    case 031: return K_RIGHT + 1;
-    case 033: return K_DOWN + 1;
-    case 010: return K_LEFT + 1;
-    case 'Q': return K_HOME + 1;       /* диагонали */
-    case 'E': return K_PGUP + 1;
-    case 'Z': return K_END + 1;
-    case 'C': return K_PGDN + 1;
+    case 032: case 'C': return K_UP + 1;
+    case 031: case 'W': return K_RIGHT + 1;
+    case 033: case 'Y': return K_DOWN + 1;
+    case 010: case 'F': return K_LEFT + 1;
+    case 'J': return K_HOME + 1;       /* вверх-влево */
+    case 'U': return K_PGUP + 1;       /* вверх-вправо */
     case 'P': return K_ESC + 1;        /* пауза */
-    case 'Y': return K_Y + 1;
-    case 'N': return K_N + 1;
-    case 'K': return K_K + 1;
-    case 'H': return K_H + 1;
-    case 'T': return K_T + 1;
-    case 'A': return K_A + 1;
-    case 'S': return K_S + 1;
+    case 'S': return K_S + 1;          /* с СУ */
     case 'R': return K_R + 1;
     case 'M': return K_M + 1;
     case '9': return K_9 + 1;
@@ -163,12 +157,15 @@ void input_poll(void)
         if (k) key_state[k - 1] = 0;
     }
     uint16_t port = REG(REG_PAR_INTERF);
-    if (port & (1 << PAR_INTERF_UP))    key_state[K_UP] = 0;
-    if (port & (1 << PAR_INTERF_RIGHT)) key_state[K_RIGHT] = 0;
-    if (port & (1 << PAR_INTERF_DOWN))  key_state[K_DOWN] = 0;
-    if (port & (1 << PAR_INTERF_LEFT))  key_state[K_LEFT] = 0;
     if (port & ((1 << PAR_INTERF_A) | (1 << PAR_INTERF_LEFT_BUTTON) | (1 << PAR_INTERF_RIGHT_BUTTON)))
         key_state[K_ALT] = 0;
+    /* биты 0..3 порта (вверх, вправо, вниз, влево) — по порядку K_UP..K_LEFT */
+    uint8_t *kp = key_state + K_UP;
+    do
+    {
+        if (port & 1) *kp = 0;
+        port >>= 1;
+    } while (++kp != key_state + K_LEFT + 1);
 }
 
 /* -------------------------------------------------------------- динамик */
