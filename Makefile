@@ -1,5 +1,5 @@
 # Порт Alley Cat (IBM PC, 1984) для БК-0010 + СМК-512: ядро + сцены в страницах ДОЗУ
-VERSION=1.0
+VERSION=0.1
 # шрифт текста: pc (8x8 BIOS IBM PC) или zx (ПЗУ ZX Spectrum 48K); make FONT=zx
 FONT=pc
 BUILD_DATE=$(shell date +%d.%m.%Y)
