@@ -1,5 +1,5 @@
 /*
- * Текст шрифтом монитора БК-0010 (копия в font.s: знаки 040..0137 по 8 байт,
+ * Текст шрифтом 8x8 BIOS IBM PC (font.s из re/mkfont.py: знаки 040..0137 по 8 байт,
  * младший бит — левый пиксель). Знакоместо 8x8 пикселей БК, 32 в строке.
  * Пауза (0x5E70).
  */
@@ -13,7 +13,7 @@
 extern const uint8_t host_font[];
 #define FONT host_font
 #else
-extern const uint8_t font[];   /* font.s: ПЗУ монитора на БК-0011М и в Std10 СМК на ней нет */
+extern const uint8_t font[];   /* font.s */
 #define FONT font
 #endif
 
