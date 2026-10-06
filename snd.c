@@ -42,7 +42,7 @@ static uint16_t f_glide;           /* [5B12] */
 
 /* ------------------------------------------------------- тон-генератор */
 
-static uint16_t tone_div;          /* текущий тон (делитель PIT), 0 — тишина */
+uint16_t tone_div;                 /* текущий тон (делитель PIT), 0 — тишина */
 static uint8_t spk_level;
 
 void tone_sq(uint16_t hp, uint16_t counts);   /* gfx.s (страница СМК) */

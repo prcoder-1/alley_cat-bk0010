@@ -41,3 +41,8 @@ void snd_tune(void);             /* 0x5B63 */
 uint16_t snd_tune_pos(void);     /* [59BE] */
 void snd_tune_play(void);        /* 0x5BBF */
 void snd_tone(uint16_t div);      /* out 42h/43h: непрерывный тон */
+extern uint16_t tone_div;         /* текущий тон, 0 — тишина */
+void snd_poll(void);              /* sndpoll.s: кусок тона во время работы (вектор gfx_poll) */
+void snd_poll_init(void);
+void snd_pass(void);              /* sndpoll.s: начало прохода цикла сцены */
+void snd_pass_idle(void);         /* sndpoll.s: тон в простое, проход не длиннее тика */

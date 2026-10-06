@@ -153,11 +153,16 @@ uint16_t tmr_elapsed(void)
 uint8_t retrace(void) { return host_retrace; }
 uint8_t retrace_seen(uint16_t *last) { (void)last; return host_retrace; }
 void tone_sq(uint16_t hp, uint16_t counts) { (void)hp; (void)counts; }
+void (*gfx_poll)(void);
+void snd_poll(void) {}
+void snd_poll_init(void) {}
+void snd_pass(void) {}
+void snd_pass_idle(void) {}
 void gfx_flush(void) {}
 void gfx_init(void) {}
-void gfx_scroll16(volatile uint8_t *row, uint16_t left)
+void gfx_scroll16(volatile uint8_t *row, uint16_t left, uint16_t rows)
 {
-    for (int y = 0; y < 16; ++y, row += 64)
+    for (int y = 0; y < rows; ++y, row += 64)
         if (left) for (int i = 0; i < 63; ++i) row[i] = row[i + 1];
         else for (int i = 63; i; --i) row[i] = row[i - 1];
 }

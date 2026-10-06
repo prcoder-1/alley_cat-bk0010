@@ -22,6 +22,7 @@ extern uint8_t can_last;
 uint16_t can_pick(uint8_t *y);
 uint8_t alley_land(void);
 void rope_update(void);       /* 0x04A0 */
+void rope_tall_reset(void);   /* (БК) полоса верёвки: снова все 16 строк */
 void windows_init(void);      /* 0x1830 */
 void windows_update(void);    /* 0x1936 */
 void item_update(void);       /* 0x184B */

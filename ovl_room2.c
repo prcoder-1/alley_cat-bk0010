@@ -385,17 +385,22 @@ static void run(void)
     dog_active = 0;
     dog_fight = 0;
     snd_rhythm_reset();
+    snd_poll_init();
     for (;;)
     {
         g_passes = loop_passes();
+        snd_pass();
         hotkeys();
         input_update();
         snd_rhythm();
         cat_update();
+        snd_poll();
         fish_update();
+        snd_poll();
         waves_update();
+        snd_poll();
         if (cat_failed | cat_won | g_menu | g_restart) break;
-        snd_idle(48);
+        snd_pass_idle();
     }
     cat_tint = 0;
 }
@@ -403,6 +408,7 @@ static void run(void)
 void ovl_entry(void)
 {
     ovl.run = run;
+    gfx_poll = snd_poll;
     hooks.items_hit = 0;
     hooks.land = 0;
     hooks.can_mouse = 0;

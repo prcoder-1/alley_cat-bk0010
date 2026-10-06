@@ -20,7 +20,7 @@
 	.globl _gfx_blit, _gfx_restore, _gfx_save, _gfx_span, _gfx_fillu, _text_glyph, _gfx_flush
 	.globl _gfx_scroll16, _tone_sq, _umulhi
 	.globl _gfx_j0, _gfx_je, _gfx_rel0, _gfx_ntint, _gfx_mode
-	.globl _gfx_init, _gfx_fence, _gfx_fence_fix
+	.globl _gfx_init, _gfx_fence, _gfx_fence_fix, _gfx_poll
 
 	VRAM = 040000
 	ROW0 = 28			/ 200 строк картинки по центру окна 256
@@ -213,10 +213,10 @@ _gfx_flush:
 
 flush:
 	tst	pend_buf
-	beq	9f
+	beq	prts
 	jsr	pc, oldset
 	jsr	pc, rsall
-9:	rts	pc
+prts:	rts	pc
 
 / отложенное стирание -> o_* (сверху вниз); снимает pend_buf; o_left = 0, если не видно
 oldset:
@@ -249,6 +249,7 @@ oldset:
 rsall:	tst	o_left
 	beq	9f
 	jsr	pc, rs1
+	jsr	pc, @_gfx_poll
 	br	rsall
 9:	rts	pc
 
@@ -279,7 +280,7 @@ rs1:	mov	o_buf, r0
 	mov	$077777, o_key		/ строк больше нет
 4:	rts	pc
 
-/ void gfx_scroll16(uint8_t *row, uint16_t left): 16 строк по 64 байта сдвинуть
+/ void gfx_scroll16(uint8_t *row, uint16_t left, uint16_t rows): rows строк по 64 байта сдвинуть
 / на байт вправо (row[i] = row[i-1]) или влево (row[i] = row[i+1]); край не трогается
 _gfx_scroll16:
 	mov	r2, -(sp)
@@ -288,7 +289,7 @@ _gfx_scroll16:
 	mov	r5, -(sp)
 	jsr	pc, flush
 	mov	012(sp), r3
-	mov	$16, r4
+	mov	016(sp), r4
 	tst	014(sp)
 	bne	5f
 	add	$64, r3
@@ -305,6 +306,7 @@ _gfx_scroll16:
 	movb	-(r1), -(r0)
 	sob	r2, 2b
 	add	$64, r3
+	jsr	pc, @_gfx_poll
 	sob	r4, 1b
 	jmp	ret4
 5:	mov	r3, r0
@@ -320,6 +322,7 @@ _gfx_scroll16:
 	movb	(r1)+, (r0)+
 	sob	r2, 2b
 	add	$64, r3
+	jsr	pc, @_gfx_poll
 	sob	r4, 5b
 	jmp	ret4
 
@@ -827,6 +830,7 @@ x_v:	add	$0, r4
 	inc	key
 	dec	n_rows
 	beq	1f
+	jsr	pc, @_gfx_poll
 	jmp	row
 1:	jsr	pc, rsall
 	tst	scr_on
@@ -917,6 +921,7 @@ pend_buf: .word 0		/ отложенное стирание: буфер фона 
 t_level: .word 0
 cur_key: .word -1		/ режим, вписанный в слоты (своя копия в каждой странице)
 _gfx_fence: .word 0		/ 1 — сцена двора: gfx_fence_fix работает (своя копия в каждой странице)
+_gfx_poll: .word prts		/ опрос тона между строками (snd_poll сцены; своя копия в каждой странице)
 
 	.bss
 	.even

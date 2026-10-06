@@ -77,47 +77,62 @@ static uint8_t rope_shift(uint8_t cf)
     return cf;
 }
 
+/* Полоса на БК — rope.s: столбцы истории (h[1] = h[0], h[0] = новый; h[2] не
+ * нужен: смещение влево 7 - o >= 4), не 0 — столбец высокий (строки 8..15 не небо) */
+uint8_t rope_push(uint8_t *h, const uint8_t *col);
+/* крайний байт полосы, n строк: e = (a | b << 8) >> sh, sh = 0, 2, 4, 6 */
+void rope_edge(volatile uint8_t *e, const uint8_t *a, const uint8_t *b, uint8_t sh, uint8_t n);
+#ifdef HOST
+uint8_t rope_push(uint8_t *h, const uint8_t *col)
+{
+    uint8_t tall = 0;
+    for (uint8_t y = 0; y < 16; ++y)
+    {
+        h[16 + y] = h[y];
+        h[y] = col[y << 2];
+        if (y >= 8 && h[y] != SWAPC(0xAA)) tall = 1;
+    }
+    return tall;
+}
+
+void rope_edge(volatile uint8_t *e, const uint8_t *a, const uint8_t *b, uint8_t sh, uint8_t n)
+{
+    for (; n; --n, e += 64) *e = (uint8_t)((*a++ | (*b++ << 8)) >> sh);
+}
+#endif
+
+/*
+ * Нижние 8 строк полосы — небо, пока в кадре нет вещи 16x16 (d_wash_full):
+ * их сдвиг ничего не меняет. rope_tall — сколько шагов ещё прокручивать все
+ * 16 строк после вставки высокого столбца (64 байта полосы = 80 шагов).
+ */
+static uint8_t rope_tall[3] = { 84, 84, 84 };
+
+void rope_tall_reset(void)
+{
+    rope_tall[0] = rope_tall[1] = rope_tall[2] = 84;
+}
+
 /* Сдвинуть полосу верёвки на экране БК и вставить новый столбец CGA */
 static void rope_scroll(uint8_t r, const uint8_t *col)
 {
     uint8_t (*h)[16] = rope_hist[r];
-    for (uint8_t y = 0; y < 16; ++y)
-    {
-        h[2][y] = h[1][y];
-        h[1][y] = h[0][y];
-        h[0][y] = col[y << 2];
-    }
+    if (rope_push(h[0], col)) rope_tall[r] = 84;
+    uint8_t n = rope_tall[r] ? 16 : 8;
+    if (rope_tall[r]) --rope_tall[r];
     uint8_t m = rope_m[r];
     rope_m[r] = m == 4 ? 0 : (uint8_t)(m + 1);
     if (m == 0) return;                       /* шаг без сдвига байта */
-    /* сдвиг (4t - 5k) после шага: m+1 -> 0,4,3,2,1 */
+    /* сдвиг (4t - 5k) после шага: m+1 -> 0,4,3,2,1; m != 0, поэтому o = 0..3 */
     static const uint8_t ofs_t[5] = { 0, 4, 3, 2, 1 };
     uint8_t o = ofs_t[rope_m[r]];
     volatile uint8_t *row = (volatile uint8_t *)(VRAM_ADDR(rp_row[r]));
-    gfx_scroll16(row, r == 1);
-    for (uint8_t y = 0; y < 16; ++y, row += 64)
-    {
-        uint16_t w;
-        uint8_t v;
-        if (r != 1)
-        {
-            /* вправо: байт 0 = пиксели S[-5k..], окно [столбец t, t-1] */
-            w = (uint16_t)(h[0][y] | (h[1][y] << 8));
-            v = (uint8_t)(w >> (o << 1));
-            if (o == 4) v = h[1][y];
-            row[0] = v;
-        }
-        else
-        {
-            /* влево: байт 63, окно [t-2, t-1, t], смещение 7 - o */
-            uint8_t off = (uint8_t)(7 - o);
-            if (off >= 4)
-                w = (uint16_t)(h[1][y] | (h[0][y] << 8)), off -= 4;
-            else
-                w = (uint16_t)(h[2][y] | (h[1][y] << 8));
-            row[63] = (uint8_t)(w >> (off << 1));
-        }
-    }
+    gfx_scroll16(row, r == 1, n);
+    snd_poll();
+    if (r != 1)
+        rope_edge(row, h[0], h[1], (uint8_t)(o << 1), n);   /* вправо: байт 0, окно [столбец t, t-1] */
+    else
+        rope_edge(row + 63, h[1], h[0], (uint8_t)((3 - o) << 1), n);   /* влево: байт 63, смещение 7 - o >= 4 */
 }
 
 /* 0x04A0 */

@@ -21,10 +21,12 @@ void gfx_init(void);
 /* щели забора двора под цифрами счёта (gfx.s); gfx_fence = 1 — в сцене двора */
 void gfx_fence_fix(void);
 extern uint16_t gfx_fence;
+/* опрос между строками вывода (своя копия в каждой странице; сцена ставит snd_poll) */
+extern void (*gfx_poll)(void);
 /* плитка 8 строк x 2 байта (подряд в src) в буфер со строками по stride байт (helpers.s) */
 void tile8x2(uint8_t *dst, const uint8_t *src, uint16_t stride);   /* общие таблицы блиттера в ОЗУ БК: один раз при первой странице */
-/* сдвинуть 16 строк экрана (по 64 байта) на байт вправо или влево (left) */
-void gfx_scroll16(volatile uint8_t *row, uint16_t left);
+/* сдвинуть rows строк экрана (по 64 байта) на байт вправо или влево (left) */
+void gfx_scroll16(volatile uint8_t *row, uint16_t left, uint16_t rows);
 
 enum BLIT_MODE { BM_COPY, BM_AND, BM_KEY, BM_OR, BM_TINT };
 extern uint16_t gfx_ntint;   /* для BM_TINT: ~(байт цвета подкраски) */

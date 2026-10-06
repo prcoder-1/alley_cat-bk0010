@@ -27,6 +27,7 @@ void ovl_entry(void)
     gfx_region(5, 0x172D, 0x17C9, d_items);
     gfx_region(6, 0x1DD0, 0x1ED0, d_mice);
     gfx_fence = 1;
+    gfx_poll = snd_poll;
 }
 
 static void alley_run(void)
@@ -40,15 +41,20 @@ static void alley_run(void)
     score_draw();
     snd_rhythm_reset();
     lives_invalidate();
+    snd_poll_init();
+    rope_tall_reset();
     for (;;)
     {
         g_passes = loop_passes();
+        snd_pass();
         if (g_lives == 0) return;
         hotkeys();
         if (g_menu || g_restart) return;
         input_update();
         cat_update();
+        snd_poll();
         dog_update();
+        snd_poll();
         if (!dog_fight)
         {
             quarter += (uint8_t)g_passes;
@@ -60,13 +66,17 @@ static void alley_run(void)
             g_passes4 = g_passes;
         snd_rhythm();
         rope_update();
+        snd_poll();
         windows_update();
         item_update();
+        snd_poll();
         canmouse_update();
+        snd_poll();
         mice_update();
+        snd_poll();
         lives_update();
         if (cat_exit) return;
 idle:
-        snd_idle(48);
+        snd_pass_idle();
     }
 }

@@ -318,25 +318,32 @@ static void run(void)
     broom_init();
     dog_reset();
     snd_rhythm_reset();
+    snd_poll_init();
     for (;;)
     {
         g_passes = loop_passes();
+        snd_pass();
         hotkeys();
         input_update();
         snd_rhythm();
         drink_update();
+        snd_poll();
         dogs_update();
+        snd_poll();
         cat_update();
+        snd_poll();
         if (dog_fight) dog_update();
         else broom_update();
+        snd_poll();
         if (cat_exit | cat_failed | cat_won | g_restart | g_menu) return;
-        snd_idle(48);
+        snd_pass_idle();
     }
 }
 
 void ovl_entry(void)
 {
     ovl.run = run;
+    gfx_poll = snd_poll;
     hooks.items_hit = 0;
     hooks.land = room_land;
     hooks.can_mouse = 0;

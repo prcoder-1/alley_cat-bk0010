@@ -272,25 +272,33 @@ static void run(void)
     pots_init();
     spider_init();
     snd_rhythm_reset();
+    snd_poll_init();
     for (;;)
     {
         g_passes = loop_passes();
+        snd_pass();
         hotkeys();
         input_update();
         snd_rhythm();
         cat_update();
+        snd_poll();
         spider_update();
+        snd_poll();
         pots_update();
+        snd_poll();
         broom_update();
+        snd_poll();
         dog_update();
+        snd_poll();
         if (cat_failed | cat_won | cat_exit | g_menu | g_restart) return;
-        snd_idle(48);
+        snd_pass_idle();
     }
 }
 
 void ovl_entry(void)
 {
     ovl.run = run;
+    gfx_poll = snd_poll;
     hooks.items_hit = 0;
     hooks.land = room_land;
     hooks.can_mouse = 0;

@@ -10,7 +10,7 @@ OUT=bin
 KERNEL_OBJ=crt0.o gfxc.o hw.o common.o helpers.o divmulmod.o memory.o font.o \
 	cat.o dog.o snd.o score.o text.o ovl.o main.o inl.o
 OVL_ALLEYBG=ovl_alleybg.o alley_bg.o wash.o data_alleybg.o data_wash.o
-OVL_ALLEY=ovl_alley.o alley.o alley_land.o wash.o data_alley.o data_wash.o
+OVL_ALLEY=ovl_alley.o sndpoll.o rope.o alley.o alley_land.o wash.o data_alley.o data_wash.o
 
 OVERLAYS=TITLE INTER ALLEYBG ALLEY ROOM1 ROOM2 ROOM3 ROOM4 ROOM5 ROOM6 ROOM7
 
@@ -63,8 +63,8 @@ $(eval $(call overlay,TITLE,ovl_title.o gfxcrop.o alley_bg.o alley_land.o wash.o
 $(eval $(call overlay,INTER,ovl_inter.o bonus.o data_inter.o data_bonus.o))
 $(eval $(call overlay,ALLEYBG,$(OVL_ALLEYBG)))
 $(eval $(call overlay,ALLEY,$(OVL_ALLEY)))
-$(foreach r,1 3 4 5 6,$(eval $(call overlay,ROOM$(r),ovl_room$(r).o room.o data_room.o data_room$(r).o)))
-$(eval $(call overlay,ROOM2,ovl_room2.o data_room2.o))
+$(foreach r,1 3 4 5 6,$(eval $(call overlay,ROOM$(r),ovl_room$(r).o sndpoll.o room.o data_room.o data_room$(r).o)))
+$(eval $(call overlay,ROOM2,ovl_room2.o sndpoll.o data_room2.o))
 $(eval $(call overlay,ROOM7,ovl_room7.o fwin.o bonus.o data_room7.o data_bonus.o))
 
 # дискета ANDOS с игрой: чистый ANDOS.IMG + ядро (с автостартом), HI и сцены
