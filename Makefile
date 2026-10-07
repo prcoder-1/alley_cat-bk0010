@@ -1,5 +1,6 @@
 # Порт Alley Cat (IBM PC, 1984) для БК-0010 + СМК-512: ядро + сцены в страницах ДОЗУ
 VERSION=0.1
+IMG=ALLEYCAT_V$(VERSION).IMG
 # шрифт текста: pc (8x8 BIOS IBM PC) или zx (ПЗУ ZX Spectrum 48K); make FONT=zx
 FONT=pc
 BUILD_DATE=$(shell date +%d.%m.%Y)
@@ -18,7 +19,7 @@ OVL_ALLEY=ovl_alley.o sndpoll.o rope.o alley.o alley_land.o wash.o data_alley.o 
 
 OVERLAYS=TITLE INTER ALLEYBG ALLEY ROOM1 ROOM2 ROOM3 ROOM4 ROOM5 ROOM6 ROOM7
 
-all: $(OUT)/CAT.BIN $(OUT)/HI $(addprefix $(OUT)/,$(OVERLAYS)) $(OUT)/ALLEYCAT.IMG
+all: $(OUT)/CAT.BIN $(OUT)/HI $(addprefix $(OUT)/,$(OVERLAYS)) $(OUT)/$(IMG)
 
 DATA_H=data_kernel.h data_bonus.h data_inter.h data_title.h data_alley.h data_alleybg.h data_wash.h data_room.h data_room1.h data_room2.h data_room3.h data_room4.h data_room5.h data_room6.h data_room7.h
 
@@ -85,19 +86,19 @@ $(eval $(call overlay,ROOM7,ovl_room7.o fwin.o bonus.o data_room7.o data_bonus.o
 
 # дискета ANDOS с игрой: чистый ANDOS.IMG + ядро (с автостартом), HI и сцены
 GAME_FILES=$(OUT)/CAT.BIN $(OUT)/HI $(addprefix $(OUT)/,$(OVERLAYS))
-$(OUT)/ALLEYCAT.IMG: ANDOS.IMG mkandos.py $(GAME_FILES) | $(OUT)
+$(OUT)/$(IMG): ANDOS.IMG mkandos.py $(GAME_FILES) | $(OUT)
 	python3 mkandos.py ANDOS.IMG $@ +$(GAME_FILES)
 
-andos: $(OUT)/ALLEYCAT.IMG
+andos: $(OUT)/$(IMG)
 
 # запуск на БК с Gryphon-MPI: дискета ANDOS -> SD-карта, привод F0, контроллер СМК-512;
 # дальше — файл CAT в файловом менеджере ANDOS
 GMPI_API_URL=http://10.0.0.55/api
 GMPI_UPLOAD_DIR=/BK_Uploads
-GMPI_IMG=$(OUT)/ALLEYCAT.IMG
+GMPI_IMG=$(OUT)/$(IMG)
 g-mpi: $(GMPI_IMG)
-	curl -i -o /dev/null -X POST -H "Content-Type: multipart/form-data" -F "storeas=$(GMPI_UPLOAD_DIR)/ALLEYCAT.IMG" -F "size=$$(stat -c%s $(GMPI_IMG))" -F "file=@$(GMPI_IMG)" "$(GMPI_API_URL)/upload"
-	curl -i -s -o /dev/null "$(GMPI_API_URL)/setdrv?drv=F0&path=$(GMPI_UPLOAD_DIR)/ALLEYCAT.IMG"
+	curl -i -o /dev/null -X POST -H "Content-Type: multipart/form-data" -F "storeas=$(GMPI_UPLOAD_DIR)/$(IMG)" -F "size=$$(stat -c%s $(GMPI_IMG))" -F "file=@$(GMPI_IMG)" "$(GMPI_API_URL)/upload"
+	curl -i -s -o /dev/null "$(GMPI_API_URL)/setdrv?drv=F0&path=$(GMPI_UPLOAD_DIR)/$(IMG)"
 	curl -i -s -o /dev/null "$(GMPI_API_URL)/run?dev=smk&emu10=no"
 
 sizes: all

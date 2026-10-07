@@ -18,7 +18,7 @@
 ## Сборка и запуск
 
 ```sh
-make            # bin/: CAT.BIN, HI, файлы сцен и дискета ANDOS ALLEYCAT.IMG
+make            # bin/: CAT.BIN, HI, файлы сцен и дискета ANDOS ALLEYCAT_V<версия>.IMG
 make andos      # только дискета ANDOS
 make sizes      # размеры ядра и сцен
 make g-mpi      # залить дискету на Gryphon-MPI (GMPI_API_URL) и запустить СМК-512
@@ -28,7 +28,7 @@ make g-mpi      # залить дискету на Gryphon-MPI (GMPI_API_URL) и
 обе выводятся на экране загрузки под надписью «LOADING ALLEY CAT»
 (`version.h` генерирует `Makefile`).
 
-`bin/ALLEYCAT.IMG` — чистый `ANDOS.IMG` с файлами игры (`mkandos.py`): FAT12,
+`bin/ALLEYCAT_V<версия>.IMG` — чистый `ANDOS.IMG` с файлами игры (`mkandos.py`): FAT12,
 800 Кбайт, файлы без заголовка `.BIN`, адрес загрузки — в поле времени записи
 каталога, как у ANDOS. Запуск — файл `CAT` из файлового менеджера ANDOS:
 ANDOS файл только загружает, поэтому `CAT` лежит с автостартом (грузится с 0760,
@@ -36,7 +36,7 @@ ANDOS файл только загружает, поэтому `CAT` лежит 
 
 Запуск в эмуляторе `bk0010-emulator`: ключ `--smk`, рабочий каталог — `bin/`
 (оттуда EMT 36 берёт файлы сцен), загрузить `CAT.BIN`. В BKemu (модель
-`BK-0010-01_SMK512`) — дискета `ALLEYCAT.IMG`, либо `CAT.BIN` вместе со всеми
+`BK-0010-01_SMK512`) — дискета `ALLEYCAT_V<версия>.IMG`, либо `CAT.BIN` вместе со всеми
 файлами сцен в каталоге, откуда эмулятор отдаёт файлы EMT 36.
 
 ## Управление
