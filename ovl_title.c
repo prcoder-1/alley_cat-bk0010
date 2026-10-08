@@ -99,6 +99,7 @@ static void title_run(void)
     blit(POS(0x0CA8), SZ(8, 28), d_title4, BM_COPY);
     blit(POS(0x1D6E), SZ(11, 24), d_title5, BM_COPY);
     blit(POS(0x1DEC), SZ(8, 8), d_title6, BM_COPY);
+    blit(POS_XY(56, 74), SZ(11, 20), d_title_pr, BM_COPY);   /* подпись порта, под «Alley Cat» */
     blink_i = 0;
     blink();
     cat_x = 0;
