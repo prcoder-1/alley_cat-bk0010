@@ -17,3 +17,5 @@ extern const uint8_t t_bowl_y[12];
 extern const uint16_t t_drink_spr[12];
 extern const uint16_t t_wake_t[8];
 extern const uint16_t t_wake_d[8];
+extern const uint8_t d_bag[384];
+extern const uint8_t t_bag_frame[8];

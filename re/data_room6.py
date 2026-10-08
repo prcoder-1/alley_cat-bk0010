@@ -16,3 +16,33 @@ ITEMS = [
     ('t_wake_t',    'w', 0x44DC, 8, 'период пробуждения по уровню'),
     ('t_wake_d',    'w', 0x44EC, 8, 'дистанция пробуждения по уровню'),
 ]
+
+# Пакет с молоком из Atari-версии (AlleyCat.xex, комната 3, 0x246E): игроки PMG 2
+# (тело, кадры $25B8) и 3 (узор и струя, $25F8), 8x16 точек Atari -> 16x16 CGA.
+# Тело — зелёный (2), узор — красный (3), как молоко в мисках порта.
+_RT = open(__file__.rsplit('/', 1)[0] + '/atari/rt.bin', 'rb').read()
+_BAG = [(0x00, 0x00), (0x10, 0x10), (0x20, 0x20), (0x30, 0x30), (0x30, 0x40), (0x20, 0x50)]
+
+
+def _bag():
+    out = bytearray()
+    for o2, o3 in _BAG:
+        for r in range(16):
+            p2, p3 = _RT[0x25B8 + o2 + r], _RT[0x25F8 + o3 + r]
+            for k in range(4):
+                b = 0
+                for i in range(4):      # точка CGA i байта k = точка Atari 2k + i//2
+                    bit = 0x80 >> (2 * k + i // 2)
+                    c = 2 if p2 & bit else (3 if p3 & bit else 0)
+                    b |= c << (2 * i)
+                out.append(b)
+    return bytes(out)
+
+
+# кадр по состоянию налива 0..7 ($25A5 / $25AD)
+_FR = bytes(_BAG.index((_RT[0x25A5 + s], _RT[0x25AD + s])) for s in range(8))
+
+ITEMS += [
+    ('d_bag', 'raw', 0, _bag(), 'пакет 16x16, 6 кадров (Atari $25B8/$25F8)'),
+    ('t_bag_frame', 'raw', 0, _FR, 'кадр пакета по состоянию налива (Atari $25A5/$25AD)'),
+]
